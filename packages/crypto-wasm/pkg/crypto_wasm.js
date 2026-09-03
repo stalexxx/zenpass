@@ -154,6 +154,95 @@ export class WasmCrypto {
 if (Symbol.dispose) WasmCrypto.prototype[Symbol.dispose] = WasmCrypto.prototype.free;
 
 /**
+ * Finish OPAQUE client login against the server's KE2 challenge. `context`
+ * must be the exact same application-context bytes the server uses
+ * (`OPAQUE_CONTEXT = "zkpm-opaque-v1"` in `apps/backend/src/auth/routes.mjs`)
+ * or the real backend rejects the login generically. Returns
+ * `{ message }`: send `message` to `/auth/opaque/login` as the second
+ * leg's `clientMessage`.
+ * @param {Uint8Array} state
+ * @param {Uint8Array} password
+ * @param {Uint8Array} response
+ * @param {Uint8Array} context
+ * @returns {any}
+ */
+export function client_login_finish(state, password, response, context) {
+    const ptr0 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(password, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray8ToWasm0(response, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passArray8ToWasm0(context, wasm.__wbindgen_malloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.client_login_finish(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Start OPAQUE client login. Returns `{ message, state }`: send `message`
+ * to `/auth/opaque/login` as the first leg's `clientMessage`; hold `state`
+ * opaquely and pass it unmodified to `client_login_finish`.
+ * @param {Uint8Array} password
+ * @returns {any}
+ */
+export function client_login_start(password) {
+    const ptr0 = passArray8ToWasm0(password, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.client_login_start(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Finish OPAQUE client registration against the server's first-leg
+ * response. Returns `{ message }`: send `message` to
+ * `/auth/opaque/register` as the second leg's `clientMessage`.
+ * @param {Uint8Array} state
+ * @param {Uint8Array} password
+ * @param {Uint8Array} response
+ * @returns {any}
+ */
+export function client_registration_finish(state, password, response) {
+    const ptr0 = passArray8ToWasm0(state, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(password, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray8ToWasm0(response, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.client_registration_finish(ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Start OPAQUE client registration. `password` is zeroized on the Rust
+ * side after use, matching `unlock_item_session` above; the caller-owned
+ * JS buffer cannot be wiped across the wasm boundary. Returns
+ * `{ message, state }`: send `message` to `/auth/opaque/register` as the
+ * first leg's `clientMessage`; hold `state` opaquely and pass it unmodified
+ * to `client_registration_finish`.
+ * @param {Uint8Array} password
+ * @returns {any}
+ */
+export function client_registration_start(password) {
+    const ptr0 = passArray8ToWasm0(password, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.client_registration_start(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Actual WASM export used for the cross-binding canonical-AAD golden vector.
  * It accepts identifiers only and cannot observe or return a key.
  * @param {string} account_id

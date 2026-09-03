@@ -37,9 +37,94 @@ fn error(error: crypto_core::Error) -> JsValue {
     })
 }
 
+fn object(entries: &[(&str, JsValue)]) -> Result<JsValue, JsValue> {
+    let result = Object::new();
+    for (name, value) in entries {
+        Reflect::set(&result, &(*name).into(), value).map_err(|_| JsValue::from_str("Internal"))?;
+    }
+    Ok(result.into())
+}
+
+fn bytes(value: &[u8]) -> JsValue {
+    js_sys::Uint8Array::from(value).into()
+}
+
 #[wasm_bindgen]
 pub fn protocol_status() -> String {
     crypto_core::protocol_status().to_owned()
+}
+
+// ADR-0007: production browser-side OPAQUE client binding. Mechanical
+// byte-in/byte-out wrappers around `crypto_core::opaque`'s existing client
+// helpers, moved here from `packages/crypto-server`'s test-only `test_client`
+// module (which stays as-is, for that crate's own in-process test suite).
+// No new cryptography; `packages/sdk` owns the HTTP register/login
+// choreography and session handling, this module only ever
+// returns/consumes protocol message bytes and opaque state bytes.
+
+/// Start OPAQUE client registration. `password` is zeroized on the Rust
+/// side after use, matching `unlock_item_session` above; the caller-owned
+/// JS buffer cannot be wiped across the wasm boundary. Returns
+/// `{ message, state }`: send `message` to `/auth/opaque/register` as the
+/// first leg's `clientMessage`; hold `state` opaquely and pass it unmodified
+/// to `client_registration_finish`.
+#[wasm_bindgen]
+pub fn client_registration_start(password: Vec<u8>) -> Result<JsValue, JsValue> {
+    let password = Zeroizing::new(password);
+    let result = crypto_core::opaque::client_registration_start(&password).map_err(error)?;
+    object(&[
+        ("message", bytes(&result.message)),
+        ("state", bytes(&result.state_bytes())),
+    ])
+}
+
+/// Finish OPAQUE client registration against the server's first-leg
+/// response. Returns `{ message }`: send `message` to
+/// `/auth/opaque/register` as the second leg's `clientMessage`.
+#[wasm_bindgen]
+pub fn client_registration_finish(
+    state: Vec<u8>,
+    password: Vec<u8>,
+    response: Vec<u8>,
+) -> Result<JsValue, JsValue> {
+    let password = Zeroizing::new(password);
+    let state = crypto_core::opaque::client_registration_state(&state).map_err(error)?;
+    let result = crypto_core::opaque::client_registration_finish(state, &password, &response)
+        .map_err(error)?;
+    object(&[("message", bytes(&result.message))])
+}
+
+/// Start OPAQUE client login. Returns `{ message, state }`: send `message`
+/// to `/auth/opaque/login` as the first leg's `clientMessage`; hold `state`
+/// opaquely and pass it unmodified to `client_login_finish`.
+#[wasm_bindgen]
+pub fn client_login_start(password: Vec<u8>) -> Result<JsValue, JsValue> {
+    let password = Zeroizing::new(password);
+    let result = crypto_core::opaque::client_login_start(&password).map_err(error)?;
+    object(&[
+        ("message", bytes(&result.message)),
+        ("state", bytes(&result.state_bytes())),
+    ])
+}
+
+/// Finish OPAQUE client login against the server's KE2 challenge. `context`
+/// must be the exact same application-context bytes the server uses
+/// (`OPAQUE_CONTEXT = "zkpm-opaque-v1"` in `apps/backend/src/auth/routes.mjs`)
+/// or the real backend rejects the login generically. Returns
+/// `{ message }`: send `message` to `/auth/opaque/login` as the second
+/// leg's `clientMessage`.
+#[wasm_bindgen]
+pub fn client_login_finish(
+    state: Vec<u8>,
+    password: Vec<u8>,
+    response: Vec<u8>,
+    context: Vec<u8>,
+) -> Result<JsValue, JsValue> {
+    let password = Zeroizing::new(password);
+    let state = crypto_core::opaque::client_login_state(&state).map_err(error)?;
+    let result = crypto_core::opaque::client_login_finish(state, &password, &response, &context)
+        .map_err(error)?;
+    object(&[("message", bytes(&result.message))])
 }
 
 /// Actual WASM export used for the cross-binding canonical-AAD golden vector.
