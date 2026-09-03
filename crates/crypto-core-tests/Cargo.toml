@@ -1,0 +1,29 @@
+[package]
+name = "crypto-core-tests"
+version = "0.1.0"
+edition = "2021"
+description = "Fixture, property, and fuzz-smoke tests for the crypto-core crate (test-only)."
+license = "Apache-2.0"
+publish = false
+
+# Standalone test workspace: the root workspace manifest is frozen for this
+# task, so this crate forms its own workspace root. Run the complete B01
+# verification (this crate plus the root workspace) via ./run.sh, or
+# `cargo test --workspace` from this directory.
+[workspace]
+
+[dependencies]
+crypto-core = { path = "../crypto-core" }
+
+# Test-only helpers, pinned exactly. opaque-ke/sha2/rand reuse the exact
+# versions pinned in crypto-core so the fixture harness exercises the same
+# library code as the production crate.
+minicbor = "=2.3.0"
+serde_json = "=1.0.151"
+proptest = "=1.11.0"
+opaque-ke = "=4.0.1"
+sha2 = "=0.10.9"
+rand = "=0.8.5"
+
+[lints.rust]
+unsafe_code = "forbid"
