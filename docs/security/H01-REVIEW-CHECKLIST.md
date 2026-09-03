@@ -1,0 +1,190 @@
+# H01 human security review — checklist and evidence map
+
+Prepared by the H01 preparation agent at commit `284e957` (branch
+`h01-review-prep-pi`). This document asserts **no approval**. Per `AGENTS.md`
+and `docs/tasks/H01.md`, only the human security reviewer may approve findings
+or freeze `crypto-envelope/v1`. This file maps every H01 acceptance item to
+concrete verification steps and current evidence, and registers known gaps.
+
+Status legend:
+
+- ✅ Evidence present, ready for human verification
+- ⚠️ Partial evidence; verification possible with caveats
+- ❌ Gap; acceptance item cannot be verified until resolved
+- ⏳ Human decision/signature required
+
+## 1. Acceptance criteria → evidence map
+
+| # | H01 requirement (from `docs/tasks/H01.md`) | Reviewer verifies | Evidence location | Status |
+|---|---|---|---|---|
+| AC-1 | Threat model approved | Assets, boundaries, T01–T20 mitigations, metadata exposure are sound | `docs/security/THREAT-MODEL.md` (A01 MERGED) | ⏳ ⚠️ |
+| AC-2 | Crypto specification approved and `crypto-envelope/v1` frozen | Byte-level contract: envelope, AAD, CBOR rules, Argon2id, OPAQUE, errors, versioning | `docs/contracts/crypto-envelope-v1.md` (status: proposed) + `fixtures/crypto/` | ⏳ ⚠️ vectors incomplete (G-02..G-04) |
+| AC-3 | Crypto libraries/dependencies approved | Named library + version + license + maintenance for each primitive | §3.3 of this file; no candidate list exists | ❌ G-06 |
+| AC-4 | Recovery semantics approved | Independent wrap, reset revocation, no support bypass, irreversibility | `docs/security/RECOVERY.md`, contract "Recovery reset and rotation", `fixtures/crypto/recovery-semantics.json` | ⏳ ⚠️ G-09, G-10 |
+| AC-5 | Independent vector verification | Fixtures re-derived/decrypted by a second, non-Rust implementation | §3.2 of this file; no verifier exists | ❌ G-01..G-05 |
+| AC-6 | Signed review record/ADR; Critical/High findings return A04 to READY | Findings logged with severity and disposition; signature recorded | `docs/decisions/ADR-0003-crypto-envelope-v1-approval.md` (unsigned draft) | ⏳ awaiting human |
+
+Pre-gate note: `docs/plan/STATUS.md` records A04 as `READY` after a **failed
+review** ("no crypto-fixtures package/verifier; AEAD and OPAQUE vectors
+incomplete"). The H01 gate condition ("A04 vectors and threat model reviewed by
+a human") is therefore not fully satisfiable today. The reviewer may either
+return A04 for rework first or approve with explicitly recorded findings.
+
+## 2. Evidence inventory at HEAD `284e957`
+
+| Artifact | Content | Notes |
+|---|---|---|
+| `docs/contracts/crypto-envelope-v1.md` | Normative byte-level contract | Status "proposed; implementation blocked until H01" |
+| `fixtures/crypto/aad-item-payload.json` | Canonical AAD CBOR map, positive case | Hand-decoded by prep agent: map keys 1–6, ascending, definite lengths — self-consistent |
+| `fixtures/crypto/envelope-malformed.json` | Envelope shape + 6 reject cases → typed errors | Ciphertext/nonce are placeholders, not real AEAD output |
+| `fixtures/crypto/kdf-parameters.json` | Argon2id parameter map, positive + 4 negative | Hand-decoded: map keys 1–7, values match contract (v19, 65536 KiB, 3, 1, 16-byte salt, 32) |
+| `fixtures/crypto/recovery-semantics.json` | Recovery reset assertions | Placeholder ciphertext; see G-09 |
+| `crates/crypto-core` | Empty Rust boundary, `unsafe_code = "forbid"`, **no dependencies** | Intentionally unimplemented pending H01 |
+
+Sanity decoding by the prep agent is an aid, **not** independent verification;
+the reviewer must repeat it with an independent tool (§3.2).
+
+## 3. Verification procedures
+
+### 3.1 Byte-level contract review (AC-2)
+
+For each item: confirm in `docs/contracts/crypto-envelope-v1.md`, then confirm
+the fixture exercises it. Pass condition in italics.
+
+1. Algorithms fixed: Argon2id (RFC 9106, 32 B), XChaCha20-Poly1305 (32/24/16 B),
+   canonical CBOR (RFC 8949, definite only), `b64:` transport, OPAQUE
+   (RFC 9807, Ristretto255). *No substitution without v2 + ADR + H01.*
+2. Key hierarchy: random 32 B AccountKey/VaultKey/ItemKey; never derived from
+   identifiers or plaintext; wrappers typed `account-wrap`, `recovery-wrap`,
+   `vault-wrap`, `item-wrap`.
+3. AAD = canonical CBOR of map `{1..6}`; nulls only where the kind lacks the
+   identifier; decryption rejects context mismatch
+   (`aad-item-payload.json`, reject case `aad-context-mismatch`).
+4. Outer envelope = canonical CBOR map `{1..6}`; `aad` field must equal the
+   AAD bytes; reject floats, tags, duplicate keys, indefinite lengths, unknown
+   keys (`envelope-malformed.json`).
+5. AEAD output `ciphertext || tag`; 24 fresh OS-CSPRNG nonce bytes; nonce reuse
+   forbidden; authenticate before returning plaintext; limits 1 MiB item /
+   64 KiB wrapped key.
+6. Argon2id parameter map `{1..7}`; v19; 16-byte salt; bounds
+   `memoryKiB ≥ 65536`, `iterations ≥ 3`, `parallelism ≥ 1`, ≤ 25 % physical
+   memory; calibration 500–1000 ms; parameters never silently weakened
+   (`kdf-parameters.json`).
+7. OPAQUE: vetted RFC 9807 implementation, Ristretto255 profile, standard
+   transcript; server never receives password/UnlockKey/AccountKey/recovery
+   key; generic auth failure in UI. *Library unspecified → G-06.*
+8. Typed errors leak no secret bytes or parser internals; UI cannot
+   distinguish wrong password from bad remote credential material.
+9. Versioning: `crypto-envelope/v1` string in every envelope and AAD; v1
+   readers reject unknown versions/fields; migration is copy-on-write.
+
+### 3.2 Independent vector verification (AC-5) — currently blocked
+
+Required procedure once gaps G-01..G-05 are resolved:
+
+1. **Canonicalization**: re-encode the AAD and Argon2id maps with an
+   independent CBOR encoder (e.g. Python `cbor2` with canonical settings, or a
+   hand-rolled RFC 8949 encoder) and byte-compare against
+   `canonicalCborHex` in both fixtures.
+2. **AEAD round-trip**: with an independent XChaCha20-Poly1305 implementation
+   (e.g. libsodium via PyNaCl `crypto_aead_xchacha20poly1305_ietf_*`) verify,
+   for each future positive vector: encrypt(test key, nonce, plaintext, aad)
+   reproduces `ciphertext||tag`; decrypt succeeds; flipping any tag/ciphertext/
+   AAD byte fails authentication.
+3. **Wrapping**: verify account/recovery/vault/item wrap vectors unwrap only
+   under the correct key kind and context.
+4. **OPAQUE**: verify registration/login against official RFC 9807 test
+   vectors for the chosen suite.
+5. **Record evidence**: tool name + version + commands + output digest stored
+   in the Evidence section of ADR-0003.
+
+Today only step 1 is executable (existing fixtures). No positive AEAD,
+wrapping, or OPAQUE vectors exist and no verifier package exists (§4).
+
+### 3.3 Dependency/library review (AC-3) — no evidence yet
+
+Per `DEPENDENCY-POLICY.md`, crypto primitives require human security review
+before entering `crates/crypto-core`. The reviewer needs, for each primitive,
+one table row: **library, exact version, license, last release, maintenance/
+audit history, transitive dependencies, security alternatives considered**.
+
+Minimum selection set implied by the contract: Argon2id (RFC 9106),
+XChaCha20-Poly1305 (IETF), OPAQUE RFC 9807 Ristretto255 with standard
+transcript, canonical CBOR encoder/decoder. Additional checks: `unsafe_code =
+"forbid"` compatibility, lockfile pinning, no primitive implemented outside
+Rust crypto-core, upgrade path re-runs vector verification + ADR
+(contract "OPAQUE suite"). H01 task inputs list "dependency licenses"; no such
+artifact exists yet (G-06).
+
+### 3.4 Recovery semantics review (AC-4)
+
+Verify each statement appears consistently in `docs/security/RECOVERY.md`,
+contract "Recovery reset and rotation", and the fixture's
+`postRecoveryAssertions`:
+
+1. Recovery key is 32 random bytes, wraps AccountKey independently of the
+   password wrapper; display encoding is display-only.
+2. Key shown once; saved-state requires a confirmation challenge derived from
+   the recovery key.
+3. Reset happens client-side (unwrap → new UnlockKey → new wrapper →
+   authenticated upload); server stores only wrapped keys/reset authorization.
+4. Successful reset revokes all sessions/devices, increments wrapper version,
+   requires explicit re-enrollment.
+5. Rotation is copy-on-write; item ciphertexts not rewritten for password
+   rotation.
+6. Loss of both password and recovery key is permanent; no support bypass
+   (SD-0004, threat T14).
+7. Consistency check across the three sources — re-enrollment wording in
+   `RECOVERY.md` ("unless explicitly re-enrolled") vs contract ("requires
+   explicit re-enrollment") must be confirmed equivalent by the reviewer.
+
+Open reviewer questions (not decided here): recovery-code display encoding
+unspecified (G-10); fixture placeholder ciphertext length 56 B does not match
+32 B key + 16 B tag = 48 B expected for `recovery-wrap` (G-09).
+
+### 3.5 Threat-model consistency (AC-1)
+
+Operationalizes the unsigned "Human review checklist" at the end of
+`THREAT-MODEL.md`:
+
+- [ ] Assets, boundaries, assumptions, metadata exposure approved.
+- [ ] T01–T20 rows have an owner, severity, and evidence.
+- [ ] Crypto and recovery decisions carry explicit human approval (→ ADR-0003).
+- [ ] No mitigation weakens the zero-knowledge invariant (cross-check contract
+      key hierarchy + OPAQUE + recovery sections against the invariants list).
+- [ ] Critical/High findings fixed or formally accepted before release.
+
+Specific ties: T08 needs Argon2id calibration evidence (G-07); T12 supply chain
+needs §3.3; T14 is covered by §3.4; "Open questions" 2–5 (metadata budget,
+browser matrix, backup retention, external-audit scope) are outside H01's
+freeze decision and must not be silently assumed approved.
+
+## 4. Evidence gap register
+
+| ID | Gap | Blocks | Resolution owner |
+|---|---|---|---|
+| G-01 | No `crypto-fixtures` verifier package; A04 command `pnpm test --filter crypto-fixtures` is also stale (workspace migrated to Bun) | AC-5 | A04 rework (integrator dispatch) |
+| G-02 | No positive AEAD round-trip vectors; fixture ciphertexts are placeholders, not real XChaCha20-Poly1305 output | AC-5, AC-2 | A04 rework |
+| G-03 | No key-wrapping vectors (account/recovery/vault/item) | AC-5 | A04 rework |
+| G-04 | No OPAQUE (RFC 9807) vectors | AC-5 | A04 rework |
+| G-05 | No independent (non-Rust) verification implementation/procedure output | AC-5 | A04 rework + H01 reviewer |
+| G-06 | No crypto library selection/version/license inventory; `crypto-core` has zero dependencies; "dependency licenses" input artifact absent | AC-3 | A04 or B01 proposal → H01 approval |
+| G-07 | No Argon2id target-device calibration evidence (500–1000 ms within bounds) | AC-2 (T08) | B01 (post-approval) or A04 |
+| G-08 | `ADR-0003`/`ADR-0004` referenced by `docs/security/DECISIONS.md` did not exist as files | Record integrity | ADR-0003 draft added by this task (unsigned); ADR-0004 remains open, owned by SD-0005 tasks |
+| G-09 | `recovery-semantics-01` placeholder ciphertext is 56 B; expected 48 B (32 B key + 16 B tag) for `recovery-wrap` | AC-4, AC-5 | A04 rework |
+| G-10 | Recovery-code display encoding unspecified ("any printable code") | AC-4 | H01 reviewer decision (or A04 rework) |
+
+No severity is pre-assigned; severity and disposition (fix vs formally accept)
+belong to the human reviewer in ADR-0003.
+
+## 5. Approval and finding record
+
+- Findings and the approval signature are recorded **only** in
+  `docs/decisions/ADR-0003-crypto-envelope-v1-approval.md` (currently an
+  unsigned draft).
+- Critical/High findings → integrator returns A04 to `READY` (task rule).
+- Approval → integrator flips the contract status to frozen/Approved and
+  updates `SD-0003` in `docs/security/DECISIONS.md`; contract files are outside
+  H01 allowed paths and are not modified by this task.
+- Nothing in this checklist, the ADR draft, or the decision register
+  constitutes approval.
