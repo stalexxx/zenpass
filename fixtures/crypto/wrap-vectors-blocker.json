@@ -1,0 +1,35 @@
+{
+  "id": "wrap-vectors-g03-blocker-01",
+  "status": "blocked",
+  "scope": "G-03 wrapper-vector source research",
+  "classification": "metadata-only; contains no cryptographic test vector or production material",
+  "finding": "No primary, reproducible source located that publishes account-wrap, recovery-wrap, vault-wrap, or item-wrap vectors using the crypto-envelope/v1 canonical-CBOR AAD. These wrapper kinds, identifier bindings, and AAD bytes are application-specific to this contract and are not defined by the XChaCha20-Poly1305 source.",
+  "sourcesReviewed": [
+    {
+      "source": "draft-irtf-cfrg-xchacha-03",
+      "url": "https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha-03",
+      "relevantSections": ["section 2", "appendix A.1"],
+      "coverage": "Defines AEAD_XChaCha20_Poly1305 and publishes generic AEAD test vectors; it does not define this repository's wrapper kinds or canonical-CBOR context."
+    },
+    {
+      "source": "RFC 9807",
+      "url": "https://www.rfc-editor.org/rfc/rfc9807.html",
+      "relevantSections": ["appendix C.1.1"],
+      "coverage": "Publishes OPAQUE-3DH ristretto255 test material; it does not define symmetric account, recovery, vault, or item key wrapping."
+    }
+  ],
+  "missingWrapperKinds": [
+    "account-wrap",
+    "recovery-wrap",
+    "vault-wrap",
+    "item-wrap"
+  ],
+  "requiredBeforeVectorsMayBeAdded": [
+    "A human H01 reviewer must approve an independently implemented, non-Rust validator adapter and record its identity, version, source, license, and invocation in ADR-0003 before its output can count as evidence.",
+    "The reviewer must approve a documented test-only vector generation procedure that takes the frozen contract's exact canonical AAD bytes and emits each 32-byte wrapped key as XChaCha20-Poly1305 ciphertext || 16-byte tag (48 bytes total). This is an application-fixture procedure, not an authoritative external wrapper-vector source.",
+    "The adapter must independently encrypt and decrypt every positive case and reject wrong wrapping key, wrong kind, changed account/vault/item identifier, changed key version, and changed nonce/ciphertext/tag without returning wrapped-key bytes.",
+    "Each resulting vector must carry source/procedure provenance, fixture-format revision, test-only classification, and SHA-256 of its normalized record; the H01 reviewer must record the independent result digest and disposition.",
+    "No production library selection, contract change, or production crypto implementation is authorized by this blocker record."
+  ],
+  "handoff": "G-03 remains open and H01 remains blocked. Do not claim G-03 closed unless all four wrapper kinds have positive vectors and every required negative case validated through the approved independent adapter."
+}
