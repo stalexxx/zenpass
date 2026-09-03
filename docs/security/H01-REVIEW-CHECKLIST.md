@@ -6,6 +6,12 @@ and `docs/tasks/H01.md`, only the human security reviewer may approve findings
 or freeze `crypto-envelope/v1`. This file maps every H01 acceptance item to
 concrete verification steps and current evidence, and registers known gaps.
 
+Amendment 2026-09-03 (library-evidence agent): candidate
+library/license/maintenance evidence for G-06 was added in
+`docs/security/H01-LIBRARY-EVIDENCE.md` (verified facts vs. proposals vs.
+uncertainties separated; reviewer verdicts left blank; no selection recorded).
+AC-3 and §3.3 were updated to point at it.
+
 Status legend:
 
 - ✅ Evidence present, ready for human verification
@@ -19,7 +25,7 @@ Status legend:
 |---|---|---|---|---|
 | AC-1 | Threat model approved | Assets, boundaries, T01–T20 mitigations, metadata exposure are sound | `docs/security/THREAT-MODEL.md` (A01 MERGED) | ⏳ ⚠️ |
 | AC-2 | Crypto specification approved and `crypto-envelope/v1` frozen | Byte-level contract: envelope, AAD, CBOR rules, Argon2id, OPAQUE, errors, versioning | `docs/contracts/crypto-envelope-v1.md` (status: proposed) + `fixtures/crypto/` | ⏳ ⚠️ vectors incomplete (G-02..G-04) and KDF fixture defect G-11 |
-| AC-3 | Crypto libraries/dependencies approved | Named library + version + license + maintenance for each primitive | §3.3 of this file; no candidate list exists | ❌ G-06 |
+| AC-3 | Crypto libraries/dependencies approved | Named library + version + license + maintenance for each primitive | §3.3; candidate evidence table `docs/security/H01-LIBRARY-EVIDENCE.md` (verified facts, alternatives, uncertainty register; verdicts blank) | ⏳ ⚠️ candidate evidence prepared; selection and approval still pending (G-06) |
 | AC-4 | Recovery semantics approved | Independent wrap, reset revocation, no support bypass, irreversibility | `docs/security/RECOVERY.md`, contract "Recovery reset and rotation", `fixtures/crypto/recovery-semantics.json` | ⏳ ⚠️ G-09, G-10 |
 | AC-5 | Independent vector verification | Fixtures re-derived/decrypted by a second, non-Rust implementation | §3.2 of this file; prep-agent run §3.2.1 (does not substitute) | ❌ G-01..G-05, G-11 |
 | AC-6 | Signed review record/ADR; Critical/High findings return A04 to READY | Findings logged with severity and disposition; signature recorded | `docs/decisions/ADR-0003-crypto-envelope-v1-approval.md` (unsigned draft) | ⏳ awaiting human |
@@ -131,12 +137,19 @@ amendment, harness/adapter boundary, vector matrix, and reviewer evidence
 procedure, is specified in `H01-CRYPTO-FIXTURES-VERIFIER-PLAN.md`. That plan
 does not verify vectors or constitute approval.
 
-### 3.3 Dependency/library review (AC-3) — no evidence yet
+### 3.3 Dependency/library review (AC-3) — candidate evidence prepared, approval pending
 
 Per `DEPENDENCY-POLICY.md`, crypto primitives require human security review
 before entering `crates/crypto-core`. The reviewer needs, for each primitive,
 one table row: **library, exact version, license, last release, maintenance/
 audit history, transitive dependencies, security alternatives considered**.
+
+A candidate evidence table meeting these column requirements now exists in
+`docs/security/H01-LIBRARY-EVIDENCE.md` (sources queried 2026-09-03; verified
+facts carry source IDs; proposals and uncertainties are separated; reviewer
+verdicts are blank; no library is selected and `crypto-core` remains
+dependency-free). The reviewer still must make the selection, complete the
+Library approval table in ADR-0003, and sign.
 
 Minimum selection set implied by the contract: Argon2id (RFC 9106),
 XChaCha20-Poly1305 (IETF), OPAQUE RFC 9807 Ristretto255 with standard
@@ -200,7 +213,7 @@ freeze decision and must not be silently assumed approved.
 | G-03 | No key-wrapping vectors (account/recovery/vault/item) | AC-5 | A04 rework |
 | G-04 | No OPAQUE (RFC 9807) vectors | AC-5 | A04 rework |
 | G-05 | No independent (non-Rust) verification implementation/procedure output | AC-5 | A04 rework + H01 reviewer |
-| G-06 | No crypto library selection/version/license inventory; `crypto-core` has zero dependencies; "dependency licenses" input artifact absent | AC-3 | A04 or B01 proposal → H01 approval |
+| G-06 | No crypto library selection/version/license inventory; `crypto-core` has zero dependencies; "dependency licenses" input artifact absent — **partially addressed 2026-09-03**: candidate evidence table added (`docs/security/H01-LIBRARY-EVIDENCE.md`); no selection, dependency, or approval recorded | AC-3 | H01 reviewer (evidence prepared; selection pending); B01 re-verifies versions/licenses at pin time |
 | G-07 | No Argon2id target-device calibration evidence (500–1000 ms within bounds). An unsigned, non-binding evidence protocol (device matrix, measurement method, contract constraints, results/provenance templates) was added by the G-07 documentation-prep follow-up: `docs/security/H01-ARGON2ID-CALIBRATION-PROTOCOL.md`. No measurements exist and the gap remains open | AC-2 (T08) | B01 (post-approval) or A04 |
 | G-08 | `ADR-0003`/`ADR-0004` referenced by `docs/security/DECISIONS.md` did not exist as files | Record integrity | ADR-0003 draft added by this task (unsigned); unsigned ADR-0004 draft added by the G-08 record-integrity follow-up (issue #1) — referential integrity restored, SD-0005 policy decisions remain pending in the draft |
 | G-09 | `recovery-semantics-01` placeholder ciphertext is 56 B; expected 48 B (32 B key + 16 B tag) for `recovery-wrap` | AC-4, AC-5 | A04 rework |

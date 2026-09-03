@@ -53,6 +53,12 @@ Cryptographic implementation may not merge until this ADR carries a signature
 | OPAQUE (RFC 9807, Ristretto255) | — | — | — | — | — |
 | Canonical CBOR (RFC 8949) | — | — | — | — | — |
 
+Candidate evidence (verified library/version/license/maintenance facts,
+alternatives considered, and an uncertainty register) is collected in
+`docs/security/H01-LIBRARY-EVIDENCE.md` (queried 2026-09-03). It selects no
+library and grants no approval; this table is completed only by the human
+reviewer before signature, with versions re-verified at pin time.
+
 Constraints: primitives live only in `crates/crypto-core` (`unsafe_code =
 "forbid"`); clients consume bindings (SD-0001); upgrades re-run vector
 verification with a new ADR row; suite changes require H01 re-approval.
