@@ -1,0 +1,24 @@
+{
+  "folders": [{ "id": "f1", "name": "Personal" }],
+  "items": [
+    {
+      "id": "i1",
+      "folderId": "f1",
+      "type": 1,
+      "name": "Example",
+      "notes": "some note",
+      "login": {
+        "username": "alice",
+        "password": "hunter2",
+        "totp": "otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP",
+        "uris": [{ "uri": "https://example.com" }, { "uri": "https://m.example.com" }]
+      }
+    },
+    {
+      "id": "i2",
+      "type": 2,
+      "name": "Secure note only",
+      "notes": "just text"
+    }
+  ]
+}
