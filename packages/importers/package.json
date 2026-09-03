@@ -1,0 +1,9 @@
+{
+  "name": "@zkpm/importers",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@zkpm/domain": "workspace:*" },
+  "scripts": { "test": "bun test" }
+}

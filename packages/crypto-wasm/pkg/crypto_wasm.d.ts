@@ -28,6 +28,40 @@ export class WasmCrypto {
 }
 
 /**
+ * Finish OPAQUE client login against the server's KE2 challenge. `context`
+ * must be the exact same application-context bytes the server uses
+ * (`OPAQUE_CONTEXT = "zkpm-opaque-v1"` in `apps/backend/src/auth/routes.mjs`)
+ * or the real backend rejects the login generically. Returns
+ * `{ message }`: send `message` to `/auth/opaque/login` as the second
+ * leg's `clientMessage`.
+ */
+export function client_login_finish(state: Uint8Array, password: Uint8Array, response: Uint8Array, context: Uint8Array): any;
+
+/**
+ * Start OPAQUE client login. Returns `{ message, state }`: send `message`
+ * to `/auth/opaque/login` as the first leg's `clientMessage`; hold `state`
+ * opaquely and pass it unmodified to `client_login_finish`.
+ */
+export function client_login_start(password: Uint8Array): any;
+
+/**
+ * Finish OPAQUE client registration against the server's first-leg
+ * response. Returns `{ message }`: send `message` to
+ * `/auth/opaque/register` as the second leg's `clientMessage`.
+ */
+export function client_registration_finish(state: Uint8Array, password: Uint8Array, response: Uint8Array): any;
+
+/**
+ * Start OPAQUE client registration. `password` is zeroized on the Rust
+ * side after use, matching `unlock_item_session` above; the caller-owned
+ * JS buffer cannot be wiped across the wasm boundary. Returns
+ * `{ message, state }`: send `message` to `/auth/opaque/register` as the
+ * first leg's `clientMessage`; hold `state` opaquely and pass it unmodified
+ * to `client_registration_finish`.
+ */
+export function client_registration_start(password: Uint8Array): any;
+
+/**
  * Actual WASM export used for the cross-binding canonical-AAD golden vector.
  * It accepts identifiers only and cannot observe or return a key.
  */
@@ -40,6 +74,10 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_wasmcrypto_free: (a: number, b: number) => void;
+    readonly client_login_finish: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
+    readonly client_login_start: (a: number, b: number) => [number, number, number];
+    readonly client_registration_finish: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly client_registration_start: (a: number, b: number) => [number, number, number];
     readonly encode_item_payload_aad: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint) => [number, number, number, number];
     readonly protocol_status: () => [number, number];
     readonly wasmcrypto_close_session: (a: number, b: number) => void;
@@ -53,8 +91,8 @@ export interface InitOutput {
     readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
-    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __externref_table_dealloc: (a: number) => void;
+    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }

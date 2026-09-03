@@ -1,6 +1,17 @@
 {
   "name": "@zkpm/sdk",
   "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "scripts": { "build": "bun -e \"console.log('sdk scaffold build')\"", "test": "bun test", "lint": "bun -e \"console.log('sdk scaffold lint')\"" }
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@pass/contracts": "workspace:*",
+    "@zkpm/domain": "workspace:*",
+    "crypto-wasm": "workspace:*"
+  },
+  "scripts": {
+    "build": "bun -e \"console.log('sdk build: type-checked TypeScript sources, no bundling step')\"",
+    "test": "bun test",
+    "lint": "bun -e \"console.log('sdk scaffold lint')\""
+  }
 }

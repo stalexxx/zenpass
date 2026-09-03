@@ -21,6 +21,10 @@
       "name": "@pass/contracts",
       "version": "0.1.0",
     },
+    "packages/crypto-fixtures": {
+      "name": "crypto-fixtures",
+      "version": "0.1.0",
+    },
     "packages/crypto-server": {
       "name": "crypto-server",
     },
@@ -33,8 +37,25 @@
         "crypto-wasm": "workspace:*",
       },
     },
+    "packages/domain": {
+      "name": "@zkpm/domain",
+      "version": "0.1.0",
+    },
+    "packages/importers": {
+      "name": "@zkpm/importers",
+      "version": "0.1.0",
+      "dependencies": {
+        "@zkpm/domain": "workspace:*",
+      },
+    },
     "packages/sdk": {
       "name": "@zkpm/sdk",
+      "version": "0.1.0",
+      "dependencies": {
+        "@pass/contracts": "workspace:*",
+        "@zkpm/domain": "workspace:*",
+        "crypto-wasm": "workspace:*",
+      },
     },
   },
   "packages": {
@@ -56,7 +77,11 @@
 
     "@zkpm/backend": ["@zkpm/backend@workspace:apps/backend"],
 
+    "@zkpm/domain": ["@zkpm/domain@workspace:packages/domain"],
+
     "@zkpm/extension": ["@zkpm/extension@workspace:apps/extension"],
+
+    "@zkpm/importers": ["@zkpm/importers@workspace:packages/importers"],
 
     "@zkpm/sdk": ["@zkpm/sdk@workspace:packages/sdk"],
 
@@ -73,6 +98,8 @@
     "avvio": ["avvio@9.3.0", "", { "dependencies": { "@fastify/error": "^4.0.0", "fastq": "^1.17.1" } }, "sha512-g2tQ7LE7oOSqDfwEm3M+ZCMTJc7KiZCdJ4UwyZJb5ckTKyYu50OYmvv0mCFXPuYXoM4zkSt8zM9XQ9KCvxA74A=="],
 
     "cookie": ["cookie@1.1.1", "", {}, "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="],
+
+    "crypto-fixtures": ["crypto-fixtures@workspace:packages/crypto-fixtures"],
 
     "crypto-server": ["crypto-server@workspace:packages/crypto-server"],
 
