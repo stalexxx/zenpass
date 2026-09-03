@@ -1,0 +1,25 @@
+[package]
+name = "crypto-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+# Standalone: B04 may not modify the frozen root Cargo workspace beyond
+# integration-only registration (ADR-0006).
+[workspace]
+
+[dependencies]
+crypto-core = { path = "../../crates/crypto-core" }
+wasm-bindgen = "=0.2.108"
+js-sys = "=0.3.85"
+zeroize = "=1.9.0"
+# Same approved browser-RNG selection as packages/crypto-wasm (ADR-0006):
+# this does not add a primitive or change crypto-core's dependency selection.
+getrandom_02 = { package = "getrandom", version = "=0.2.17", features = ["js"] }
+getrandom_04 = { package = "getrandom", version = "=0.4.3", features = ["wasm_js"] }
+
+[lints.rust]
+unsafe_code = "forbid"

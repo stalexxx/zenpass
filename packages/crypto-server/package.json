@@ -1,0 +1,12 @@
+{
+  "name": "crypto-server",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./pkg/crypto_server.js" },
+  "files": ["pkg/"],
+  "scripts": {
+    "prepare:wasm-tool": "cargo install wasm-bindgen-cli --version 0.2.108 --locked --root .tools",
+    "build:wasm": "bun run prepare:wasm-tool && cargo build --manifest-path Cargo.toml --target wasm32-unknown-unknown --release && ./.tools/bin/wasm-bindgen target/wasm32-unknown-unknown/release/crypto_server.wasm --target web --out-dir pkg --typescript",
+    "test": "bun run build:wasm && bun test"
+  }
+}
