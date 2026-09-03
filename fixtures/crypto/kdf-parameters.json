@@ -10,11 +10,48 @@
     "salt": "hex:000102030405060708090a0b0c0d0e0f",
     "outputLength": 32
   },
-  "canonicalCborHex": "hex:a701686172676f6e3269640213031a00010000040305010650000102030405060708090a0b0c0d0e0f0720",
+  "canonicalCborHex": "hex:a701686172676f6e3269640213031a00010000040305010650000102030405060708090a0b0c0d0e0f071820",
+  "canonicalReject": [
+    {
+      "case": "non-minimal-integer-g11-regression",
+      "encoding": "hex:a701686172676f6e3269640213031a00010000040305010650000102030405060708090a0b0c0d0e0f0720",
+      "defect": "outputLength 32 encoded as single byte 0x20 (major type 1, decodes as -1) instead of minimal RFC 8949 form 0x18 0x20; this is the exact byte string of the pre-rework G-11 defect",
+      "error": "NonCanonicalCbor"
+    },
+    {
+      "case": "non-minimal-integer-version-19",
+      "encoding": "hex:a701686172676f6e326964021813031a00010000040305010650000102030405060708090a0b0c0d0e0f071820",
+      "defect": "version 19 encoded as two-byte 0x18 0x13 although 19 <= 23 must use the single-byte minimal form 0x13",
+      "error": "NonCanonicalCbor"
+    }
+  ],
   "negative": [
-    { "case": "salt-too-short", "salt": "hex:00010203", "error": "InvalidKdfParameters" },
-    { "case": "memory-below-minimum", "memoryKiB": 32768, "error": "InvalidKdfParameters" },
-    { "case": "iterations-below-minimum", "iterations": 2, "error": "InvalidKdfParameters" },
-    { "case": "output-length-not-32", "outputLength": 16, "error": "InvalidKdfParameters" }
-  ]
+    {
+      "case": "salt-too-short",
+      "salt": "hex:00010203",
+      "error": "InvalidKdfParameters"
+    },
+    {
+      "case": "memory-below-minimum",
+      "memoryKiB": 32768,
+      "error": "InvalidKdfParameters"
+    },
+    {
+      "case": "iterations-below-minimum",
+      "iterations": 2,
+      "error": "InvalidKdfParameters"
+    },
+    {
+      "case": "output-length-not-32",
+      "outputLength": 16,
+      "error": "InvalidKdfParameters"
+    }
+  ],
+  "provenance": {
+    "fixtureFormatRevision": "crypto-fixture/1",
+    "classification": "test-only",
+    "source": "docs/contracts/crypto-envelope-v1.md, section Argon2id and unlock; RFC 8949 section 4.2.1 (canonical encoding: definite lengths, minimal-length integers)",
+    "generationProcedure": "positive bytes are the canonical CBOR encoding of the declared parameter map with integer keys 1..7 in ascending order, outputLength 32 minimally encoded as 0x18 0x20 (G-11 correction); canonicalReject bytes reproduce the pre-rework G-11 defect byte string and a derived single-defect non-minimal-integer encoding; parameter negatives substitute one out-of-bounds value",
+    "normalizedRecordSha256": "sha256:cc2f26fa3bc12b8f3915aaf45123c7270fff7fc52036f95f1c70b6d549882e55"
+  }
 }

@@ -10,9 +10,36 @@
     "keyVersion": 1
   },
   "canonicalCborHex": "hex:a6017263727970746f2d656e76656c6f70652f7631026a6163636f756e745f303103687661756c745f303104676974656d5f3031056c6974656d2d7061796c6f61640601",
+  "nonCanonical": [
+    {
+      "case": "unordered-keys",
+      "encoding": "hex:a6026a6163636f756e745f3031017263727970746f2d656e76656c6f70652f763103687661756c745f303104676974656d5f3031056c6974656d2d7061796c6f61640601",
+      "defect": "integer keys encoded in non-ascending order (key 2 before key 1)",
+      "error": "NonCanonicalCbor"
+    },
+    {
+      "case": "tagged-integer",
+      "encoding": "hex:a6017263727970746f2d656e76656c6f70652f7631026a6163636f756e745f303103687661756c745f303104676974656d5f3031056c6974656d2d7061796c6f616406c24101",
+      "defect": "keyVersion 1 encoded as tag 2 (unsigned bignum) c2 41 01 instead of untagged integer 01; tags are rejected",
+      "error": "NonCanonicalCbor"
+    },
+    {
+      "case": "float-keyversion",
+      "encoding": "hex:a6017263727970746f2d656e76656c6f70652f7631026a6163636f756e745f303103687661756c745f303104676974656d5f3031056c6974656d2d7061796c6f616406f93c00",
+      "defect": "keyVersion 1 encoded as half-precision float 1.0 (f9 3c 00); floating point is rejected",
+      "error": "NonCanonicalCbor"
+    }
+  ],
   "assertions": [
     "map has exactly six integer keys",
     "keys are encoded in ascending order",
     "changing any identifier changes AAD and makes decryption fail"
-  ]
+  ],
+  "provenance": {
+    "fixtureFormatRevision": "crypto-fixture/1",
+    "classification": "test-only",
+    "source": "docs/contracts/crypto-envelope-v1.md, section Domain separation and associated data; RFC 8949 section 4.2.1 (canonical encoding rules)",
+    "generationProcedure": "positive bytes are the canonical CBOR encoding of the declared AAD map with integer keys 1..6 in ascending order (unchanged from the original A04 fixture); nonCanonical bytes each encode the same map with exactly one documented canonicality defect (unordered keys, tagged integer, floating-point value)",
+    "normalizedRecordSha256": "sha256:24aba2a062f2e34e128c97f8a7a29b74ec2cbe91fb14ca95f7e1b845d530bfc0"
+  }
 }
