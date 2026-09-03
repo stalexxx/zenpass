@@ -31,6 +31,10 @@ test('liveness is independent of the database and readiness verifies it', async 
     };
     const unavailableApp = buildApp(config, { pool: unavailablePool });
     try {
+      const liveWithoutDatabase = await unavailableApp.inject({ method: 'GET', url: '/health/live' });
+      assert.equal(liveWithoutDatabase.statusCode, 200);
+      assert.deepEqual(liveWithoutDatabase.json(), { status: 'ok' });
+
       const unavailable = await unavailableApp.inject({ method: 'GET', url: '/health/ready' });
       assert.equal(unavailable.statusCode, 503);
       assert.deepEqual(unavailable.json(), { status: 'not_ready' });

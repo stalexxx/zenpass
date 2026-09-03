@@ -18,10 +18,15 @@ test('structured request logs exclude headers, bodies, and opaque values', () =>
       id: 'request-id',
       method: 'POST',
       url: '/v1/vaults/example/items',
-      headers: { authorization: 'AUTH_HEADER_SENTINEL' },
+      headers: {
+        authorization: 'AUTH_HEADER_SENTINEL',
+        cookie: 'COOKIE_HEADER_SENTINEL'
+      },
       body: {
         ciphertext: 'OPAQUE_PAYLOAD_SENTINEL',
-        password: 'FORM_FIELD_SENTINEL'
+        password: 'FORM_FIELD_SENTINEL',
+        recoveryKey: 'RECOVERY_KEY_SENTINEL',
+        recoveryProof: 'RECOVERY_PROOF_SENTINEL'
       }
     }
   }, 'request completed');
@@ -29,6 +34,9 @@ test('structured request logs exclude headers, bodies, and opaque values', () =>
   assert.match(output, /request-id/);
   assert.match(output, /\/v1\/vaults\/example\/items/);
   assert.doesNotMatch(output, /AUTH_HEADER_SENTINEL/);
+  assert.doesNotMatch(output, /COOKIE_HEADER_SENTINEL/);
   assert.doesNotMatch(output, /OPAQUE_PAYLOAD_SENTINEL/);
   assert.doesNotMatch(output, /FORM_FIELD_SENTINEL/);
+  assert.doesNotMatch(output, /RECOVERY_KEY_SENTINEL/);
+  assert.doesNotMatch(output, /RECOVERY_PROOF_SENTINEL/);
 });
