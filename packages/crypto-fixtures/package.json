@@ -1,0 +1,13 @@
+{
+  "name": "crypto-fixtures",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Dependency-free Bun harness for crypto-envelope/v1 test fixtures. Structural checks and adapter protocol validation only; performs no cryptographic operations.",
+  "scripts": {
+    "test": "bun run src/cli.ts --mode=full",
+    "test:structure": "bun run src/cli.ts --mode=structure",
+    "test:unit": "bun test",
+    "fixtures:digest": "bun run src/digest-tool.ts"
+  }
+}

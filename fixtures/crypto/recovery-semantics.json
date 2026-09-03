@@ -9,13 +9,22 @@
     "kind": "recovery-wrap",
     "keyVersion": 1,
     "nonce": "hex:000102030405060708090a0b0c0d0e0f1011121314151617",
-    "ciphertext": "hex:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677"
+    "ciphertext": "hex:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
   },
+  "ciphertextIsPlaceholder": true,
+  "placeholderNote": "ciphertext is NOT valid XChaCha20-Poly1305 output; it is a structural placeholder sized to the recovery-wrap expectation (32-byte wrapped AccountKey + 16-byte tag = 48 bytes) and must not be used as a positive wrap/decrypt vector",
   "postRecoveryAssertions": [
     "AccountKey is recovered only on the client",
     "new password wrapper is version 2",
     "all prior sessions and devices are revoked",
     "server cannot decrypt either wrapper",
     "missing recovery key fails with InvalidRecoveryKit"
-  ]
+  ],
+  "provenance": {
+    "fixtureFormatRevision": "crypto-fixture/1",
+    "classification": "test-only",
+    "source": "docs/contracts/crypto-envelope-v1.md, section Recovery reset and rotation; docs/security/RECOVERY.md",
+    "generationProcedure": "structural placeholder only (see placeholderNote); the 56-byte pre-rework placeholder was resized to the contract-derived 48-byte recovery-wrap length in the A04 rework (H01 gap G-09) and remains explicitly excluded from positive vector coverage pending an H01-approved independent generator",
+    "normalizedRecordSha256": "sha256:fbbf4bc7f467aae7665e3d42200365c8e7c803aebf6e88e06dc80982847e5bae"
+  }
 }
