@@ -13,6 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 crypto-core = { path = "../../crates/crypto-core" }
 wasm-bindgen = "=0.2.108"
+js-sys = "=0.3.85"
 # Enables the approved core's OS RNG dependency on browser WASM. This does
 # not add a primitive or change crypto-core's dependency selection.
 getrandom_02 = { package = "getrandom", version = "=0.2.17", features = ["js"] }

@@ -1,8 +1,9 @@
 # crypto-wasm
 
-`bun run build:wasm` compiles `src/lib.rs` for `wasm32-unknown-unknown` and
-uses pinned `wasm-bindgen` to emit the checked-in `pkg/` module and declaration
-file. `bun test` rebuilds and imports that actual browser WASM module.
+`bun run build:wasm` installs the pinned `wasm-bindgen-cli` 0.2.108 under the
+package-local ignored `.tools/`, compiles `src/lib.rs` for
+`wasm32-unknown-unknown`, and emits the checked-in `pkg/` module/declaration.
+`bun test` rebuilds and imports that actual browser WASM module.
 
 The current browser export is deliberately metadata/AAD-only. A persisted
 password/OPAQUE-to-item capability requires an authenticated OPAQUE transport

@@ -5,7 +5,8 @@
   "exports": { ".": "./pkg/crypto_wasm.js" },
   "files": ["pkg/"],
   "scripts": {
-    "build:wasm": "cargo build --manifest-path Cargo.toml --target wasm32-unknown-unknown --release && /Users/admin/.cargo/bin/wasm-bindgen target/wasm32-unknown-unknown/release/crypto_wasm.wasm --target web --out-dir pkg --typescript",
+    "prepare:wasm-tool": "cargo install wasm-bindgen-cli --version 0.2.108 --locked --root .tools",
+    "build:wasm": "bun run prepare:wasm-tool && cargo build --manifest-path Cargo.toml --target wasm32-unknown-unknown --release && ./.tools/bin/wasm-bindgen target/wasm32-unknown-unknown/release/crypto_wasm.wasm --target web --out-dir pkg --typescript",
     "test": "bun run build:wasm && bun test"
   }
 }

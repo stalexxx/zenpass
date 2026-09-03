@@ -4,7 +4,7 @@ export type { CryptoRequest, CryptoResponse } from "./protocol.ts";
 
 /** Implemented by the generated WASM adapter; session values are opaque ids. */
 export interface CryptoBackend {
-  createItemSession(): number;
+  unlockItemSession(request: Extract<CryptoRequest, { type: "unlock-item-session" }>): number;
   sealItemPayload(session: number, accountId: string, vaultId: string, itemId: string, keyVersion: bigint, plaintext: Uint8Array): Uint8Array;
   openItemPayload(session: number, accountId: string, vaultId: string, itemId: string, keyVersion: bigint, envelope: Uint8Array): Uint8Array;
   inspectEnvelope(envelope: Uint8Array): { accountId: string; vaultId: string | null; itemId: string | null; recordKind: string; keyVersion: bigint };
@@ -31,8 +31,8 @@ export class CryptoWorkerHost {
     if (!isRequest(message)) return { id: "", ok: false, error: "InvalidEncoding" };
     try {
       switch (message.type) {
-        case "create-item-session": {
-          const session = this.wasm.createItemSession();
+        case "unlock-item-session": {
+          const session = this.wasm.unlockItemSession(message);
           this.sessions.add(session);
           return { id: message.id, ok: true, type: "session", session };
         }
@@ -90,7 +90,9 @@ function isRequest(value: unknown): value is CryptoRequest {
   const payload = (field: string, cap: number) => request[field] instanceof Uint8Array && request[field].byteLength <= cap;
   const context = () => typeof request.session === "number" && Number.isSafeInteger(request.session) && request.session >= 0 && typeof request.accountId === "string" && typeof request.vaultId === "string" && typeof request.itemId === "string" && typeof request.keyVersion === "bigint" && request.keyVersion > 0n;
   switch (request.type) {
-    case "create-item-session": return exact(["id", "type"]);
+    case "unlock-item-session": return exact(["id", "type", "password", "kdfParametersCbor", "reportedPhysicalMemoryKiB", "accountId", "vaultId", "itemId", "accountKeyVersion", "vaultKeyVersion", "itemKeyVersion", "wrappedAccountKey", "wrappedVaultKey", "wrappedItemKey"]) &&
+      payload("password", MAX_ITEM_BYTES) && payload("kdfParametersCbor", 64 * 1024) && payload("wrappedAccountKey", 64 * 1024) && payload("wrappedVaultKey", 64 * 1024) && payload("wrappedItemKey", 64 * 1024) &&
+      typeof request.reportedPhysicalMemoryKiB === "bigint" && request.reportedPhysicalMemoryKiB > 0n && typeof request.accountId === "string" && typeof request.vaultId === "string" && typeof request.itemId === "string" && typeof request.accountKeyVersion === "bigint" && request.accountKeyVersion > 0n && typeof request.vaultKeyVersion === "bigint" && request.vaultKeyVersion > 0n && typeof request.itemKeyVersion === "bigint" && request.itemKeyVersion > 0n;
     case "lock": return exact(["id", "type"]);
     case "inspect-envelope": return exact(["id", "type", "envelope"]) && payload("envelope", MAX_ENVELOPE_BYTES);
     case "seal-item-payload": return exact(["id", "type", "session", "accountId", "vaultId", "itemId", "keyVersion", "plaintext"]) && context() && payload("plaintext", MAX_ITEM_BYTES);
