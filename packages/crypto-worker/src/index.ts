@@ -32,9 +32,15 @@ export class CryptoWorkerHost {
     try {
       switch (message.type) {
         case "unlock-item-session": {
-          const session = this.wasm.unlockItemSession(message);
-          this.sessions.add(session);
-          return { id: message.id, ok: true, type: "session", session };
+          try {
+            const session = this.wasm.unlockItemSession(message);
+            this.sessions.add(session);
+            return { id: message.id, ok: true, type: "session", session };
+          } finally {
+            // This is the Worker-owned structured-clone buffer. It does not
+            // erase caller/UI or JS-engine copies, which remain caller-owned.
+            message.password.fill(0);
+          }
         }
         case "seal-item-payload":
           if (!this.sessions.has(message.session)) return locked(message.id);

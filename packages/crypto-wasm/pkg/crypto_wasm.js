@@ -22,6 +22,23 @@ export class WasmCrypto {
         wasm.wasmcrypto_close_session(this.__wbg_ptr, session);
     }
     /**
+     * Runtime-only setup path: creates fresh keys internally and returns only
+     * encrypted wrappers plus canonical public metadata. No key bytes leave
+     * WASM; this enables binding lifecycle tests without static fixtures.
+     * @param {Uint8Array} password
+     * @param {bigint} reported_physical_memory_kib
+     * @returns {any}
+     */
+    create_item_session_for_setup(password, reported_physical_memory_kib) {
+        const ptr0 = passArray8ToWasm0(password, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmcrypto_create_item_session_for_setup(this.__wbg_ptr, ptr0, len0, reported_physical_memory_kib);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * @param {Uint8Array} envelope
      * @returns {any}
      */
@@ -225,6 +242,10 @@ function __wbg_get_imports() {
         },
         __wbg_new_361308b2356cecd0: function() {
             const ret = new Object();
+            return ret;
+        },
+        __wbg_new_from_slice_a3d2629dc1826784: function(arg0, arg1) {
+            const ret = new Uint8Array(getArrayU8FromWasm0(arg0, arg1));
             return ret;
         },
         __wbg_new_no_args_1c7c842f08d00ebb: function(arg0, arg1) {

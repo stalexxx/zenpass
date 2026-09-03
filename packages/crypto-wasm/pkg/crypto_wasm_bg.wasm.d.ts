@@ -5,6 +5,7 @@ export const __wbg_wasmcrypto_free: (a: number, b: number) => void;
 export const encode_item_payload_aad: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint) => [number, number, number, number];
 export const protocol_status: () => [number, number];
 export const wasmcrypto_close_session: (a: number, b: number) => void;
+export const wasmcrypto_create_item_session_for_setup: (a: number, b: number, c: number, d: bigint) => [number, number, number];
 export const wasmcrypto_inspect_envelope: (a: number, b: number, c: number) => [number, number, number];
 export const wasmcrypto_new: () => number;
 export const wasmcrypto_open_item_payload: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number, number];

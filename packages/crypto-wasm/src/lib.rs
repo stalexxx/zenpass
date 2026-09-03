@@ -12,7 +12,8 @@ use crypto_core::envelope::{encode_aad, inspect_envelope, Context, RecordKind};
 use crypto_core::kdf::{derive_unlock_key, KdfParams};
 use crypto_core::keys::{
     open_account_key_with_password, open_item_key, open_item_payload, open_vault_key,
-    seal_item_payload, ItemKey,
+    seal_item_payload, wrap_account_key_with_password, wrap_item_key, wrap_vault_key, AccountKey,
+    ItemKey, VaultKey,
 };
 use js_sys::{Object, Reflect};
 use wasm_bindgen::prelude::*;
@@ -76,6 +77,63 @@ impl WasmCrypto {
             sessions: HashMap::new(),
             next_session: 1,
         }
+    }
+
+    /// Runtime-only setup path: creates fresh keys internally and returns only
+    /// encrypted wrappers plus canonical public metadata. No key bytes leave
+    /// WASM; this enables binding lifecycle tests without static fixtures.
+    #[wasm_bindgen]
+    pub fn create_item_session_for_setup(
+        &mut self,
+        password: Vec<u8>,
+        reported_physical_memory_kib: u64,
+    ) -> Result<JsValue, JsValue> {
+        let password = Zeroizing::new(password);
+        let params = KdfParams::generate(65_536, 3, 1).map_err(error)?;
+        let unlock =
+            derive_unlock_key(&password, &params, reported_physical_memory_kib).map_err(error)?;
+        let account = AccountKey::generate();
+        let vault = VaultKey::generate();
+        let item = ItemKey::generate();
+        let account_id = "runtime-account";
+        let vault_id = "runtime-vault";
+        let item_id = "runtime-item";
+        let account_wrap =
+            wrap_account_key_with_password(&unlock, &account, account_id, 1).map_err(error)?;
+        let vault_wrap =
+            wrap_vault_key(&account, &vault, account_id, vault_id, 1).map_err(error)?;
+        let item_wrap =
+            wrap_item_key(&vault, &item, account_id, vault_id, item_id, 1).map_err(error)?;
+        let session = self.next_session;
+        self.next_session += 1;
+        self.sessions.insert(session, item);
+        let result = Object::new();
+        for (name, value) in [
+            ("accountId", JsValue::from_str(account_id)),
+            ("vaultId", JsValue::from_str(vault_id)),
+            ("itemId", JsValue::from_str(item_id)),
+            ("session", JsValue::from_f64(f64::from(session))),
+        ] {
+            Reflect::set(&result, &name.into(), &value)
+                .map_err(|_| JsValue::from_str("Internal"))?;
+        }
+        for (name, value) in [
+            (
+                "kdfParametersCbor",
+                params.encode_canonical_cbor().map_err(error)?,
+            ),
+            ("wrappedAccountKey", account_wrap),
+            ("wrappedVaultKey", vault_wrap),
+            ("wrappedItemKey", item_wrap),
+        ] {
+            Reflect::set(
+                &result,
+                &name.into(),
+                &js_sys::Uint8Array::from(value.as_slice()),
+            )
+            .map_err(|_| JsValue::from_str("Internal"))?;
+        }
+        Ok(result.into())
     }
 
     /// Opens the persisted password/account/vault/item envelope hierarchy

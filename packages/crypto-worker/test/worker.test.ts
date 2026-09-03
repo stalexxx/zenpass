@@ -72,3 +72,11 @@ test("generated WASM string error codes map to the protocol error", () => {
   };
   expect(new CryptoWorkerHost(wasm).handle(unlock("x"))).toEqual({ id: "x", ok: false, error: "AuthenticationFailed" });
 });
+
+test("worker zeroes its unlock password buffer even when backend fails", () => {
+  const password = new Uint8Array([9, 8]);
+  const wasm: CryptoBackend = { unlockItemSession: () => { throw "AuthenticationFailed"; }, sealItemPayload: () => new Uint8Array(), openItemPayload: () => new Uint8Array(), inspectEnvelope: () => ({ accountId: "a", vaultId: null, itemId: null, recordKind: "account-wrap", keyVersion: 1n }), closeSession: () => {} };
+  const request = unlock("x"); request.password = password;
+  new CryptoWorkerHost(wasm).handle(request);
+  expect(password).toEqual(new Uint8Array([0, 0]));
+});

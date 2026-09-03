@@ -9,6 +9,12 @@ export class WasmCrypto {
     free(): void;
     [Symbol.dispose](): void;
     close_session(session: number): void;
+    /**
+     * Runtime-only setup path: creates fresh keys internally and returns only
+     * encrypted wrappers plus canonical public metadata. No key bytes leave
+     * WASM; this enables binding lifecycle tests without static fixtures.
+     */
+    create_item_session_for_setup(password: Uint8Array, reported_physical_memory_kib: bigint): any;
     inspect_envelope(envelope: Uint8Array): any;
     constructor();
     open_item_payload(session: number, account_id: string, vault_id: string, item_id: string, key_version: bigint, envelope: Uint8Array): Uint8Array;
@@ -37,6 +43,7 @@ export interface InitOutput {
     readonly encode_item_payload_aad: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint) => [number, number, number, number];
     readonly protocol_status: () => [number, number];
     readonly wasmcrypto_close_session: (a: number, b: number) => void;
+    readonly wasmcrypto_create_item_session_for_setup: (a: number, b: number, c: number, d: bigint) => [number, number, number];
     readonly wasmcrypto_inspect_envelope: (a: number, b: number, c: number) => [number, number, number];
     readonly wasmcrypto_new: () => number;
     readonly wasmcrypto_open_item_payload: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number, number];
