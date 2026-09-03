@@ -81,8 +81,8 @@ no backend code.
 |---|---|---|
 | Verified metadata inventory: wire/DB/backup/log inspection with negative assertions (T11) | Q01 owner, with B02 and B05 owners | Not started; blocked on implementation waves |
 | Dump/backup inspection demonstrating no vault plaintext and documenting residual metadata (release gate) | Q01 owner | Pending Q01 entry |
-| Retention mechanisms implemented exactly per approved D-3..D-5 values, with tests | B05 owner (sync retention), B02 owner (infra/backup) | Blocked (B02 review rework; B04 pending H01) |
-| Redacted-logging/telemetry verification (T15) | B02 owner, verified in Q01 | Pending B02 completion |
+| Retention mechanisms implemented exactly per approved D-3..D-5 values, with tests | B05 owner (sync retention), B02 owner (infra/backup) | Blocked pending approval of D-3..D-5 and the B04/B05 implementation waves |
+| Redacted-logging/telemetry verification (T15) | B02 owner, verified in Q01 | B02 foundation tests pass; final end-to-end verification is pending Q01 |
 | Disclosure text (D-2) reviewed for accuracy against the implemented budget | Human security reviewer with product/UX owner (A03 artifact owner) | Not started |
 | Register/status updates on approval | Integration agent | On signature only |
 
