@@ -1,5 +1,5 @@
 # Foundation and shared contracts require integration-agent review.
-* @integration-agent
+* @integration-agent @stalexxx
 /crates/ @security-owner
 /packages/sdk/ @sdk-owner
 /apps/ @client-owner @backend-owner
