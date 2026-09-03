@@ -12,8 +12,8 @@ This file is maintained by the integration agent.
 | H01 | MERGED | integration agent | A04 | `stalexxx` approved with findings on 2026-09-03; ADR-0003 freezes v1 and defers F-2/F-3 to B01/A04/H02 |
 | B01 | MERGED | integration agent | H01 | Rust crypto-core integrated after independent Codex review; ADR-0003 F-2/F-3 and H02 release gates remain |
 | B02 | MERGED | backend agent | A02 | Health, redaction, and repeatable PostgreSQL migration tests pass; Compose uses host port 5434 |
-| B03 | READY | bindings agent | B01 | Rust crypto-core merged; binding work must preserve ADR-0003 F-2/F-3 constraints |
-| B04 | BLOCKED | auth agent | B02,A02,H01,B03 | Backend has no permitted/implemented Rust OPAQUE binding; token/refresh, WebAuthn, recovery-proof persistence, and route-mount contracts need explicit follow-up decisions |
+| B03 | MERGED | integration agent | B01 | crypto-ffi native bindings, generated WASM package, and Worker adapter merged; native and WASM pass identical golden vectors, malformed-message and lifecycle tests pass; `crates/crypto-ffi` registered in root Cargo workspace. Known limitation: full browser password-unlock parity is gated on B04's OPAQUE transport and a persisted-wrapper ownership/serialization contract (see `packages/crypto-wasm/ARCHITECTURE-GAPS.md`) |
+| B04 | READY | auth agent | B02,A02,H01,B03 | B03 now supplies the native OPAQUE/session binding; ADR-0005 already decides session/device/rate-limit architecture. Must define the OPAQUE transport contract and persisted account/vault/item wrapper ownership/serialization the crypto-worker consumes (tracked in `packages/crypto-wasm/ARCHITECTURE-GAPS.md`) |
 | B05 | BLOCKED | sync agent | B02,B04,A02 | |
 | C01 | BLOCKED | web agent | B03,B05,C02 | |
 | C02 | BLOCKED | sdk agent | A02,B03,B05 | |
