@@ -1,0 +1,27 @@
+import type { CryptoResponse } from "./protocol.ts";
+import { CryptoWorkerHost } from "./index.ts";
+
+export interface WorkerScope {
+  addEventListener(type: "message" | "close", listener: (event: { data: unknown }) => void): void;
+  postMessage(message: CryptoResponse): void;
+}
+
+/**
+ * Installs the concrete Worker event boundary. Responses are copied before
+ * posting, so callers cannot mutate a buffer still retained by a backend.
+ * Worker termination drops the isolate; `close` additionally invokes dispose
+ * when the runtime delivers that lifecycle event.
+ */
+export function installCryptoWorker(scope: WorkerScope, host: CryptoWorkerHost): void {
+  scope.addEventListener("message", (event) => {
+    const response = host.handle(event.data);
+    scope.postMessage(copyResponse(response));
+  });
+  scope.addEventListener("close", () => host.dispose());
+}
+
+function copyResponse(response: CryptoResponse): CryptoResponse {
+  return response.ok && response.type === "bytes"
+    ? { ...response, bytes: response.bytes.slice() }
+    : response;
+}

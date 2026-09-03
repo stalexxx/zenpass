@@ -1,17 +1,10 @@
 import { expect, test } from "bun:test";
-import { CryptoWasm, type CryptoWasmExports } from "../src/index.ts";
+import init, { encode_item_payload_aad, protocol_status } from "../pkg/crypto_wasm.js";
 
-test("safe facade copies caller buffers and exposes no raw-key operation", () => {
-  let received: Uint8Array | undefined;
-  const fake: CryptoWasmExports = {
-    protocolStatus: () => "crypto-envelope/v1", createItemSession: () => 7,
-    sealItemPayload: (_s, _a, _v, _i, _n, bytes) => { received = bytes; return bytes; },
-    openItemPayload: () => new Uint8Array(), inspectEnvelope: () => ({ accountId: "a", vaultId: null, itemId: null, recordKind: "account-wrap", keyVersion: 1n }), closeSession: () => {},
-  };
-  const wasm = new CryptoWasm(fake);
-  const input = new Uint8Array([1, 2]);
-  wasm.sealItemPayload(wasm.createItemSession(), "a", "v", "i", 1n, input);
-  input[0] = 9;
-  expect(received).toEqual(new Uint8Array([1, 2]));
-  expect(wasm.protocolStatus()).toBe("crypto-envelope/v1");
+test("generated browser WASM module matches the native AAD golden vector", async () => {
+  await init();
+  expect(protocol_status()).toBe("crypto-envelope/v1");
+  expect(encode_item_payload_aad("account_01", "vault_01", "item_01", 1n)).toEqual(
+    new Uint8Array(Buffer.from("a6017263727970746f2d656e76656c6f70652f7631026a6163636f756e745f303103687661756c745f303104676974656d5f3031056c6974656d2d7061796c6f61640601", "hex")),
+  );
 });

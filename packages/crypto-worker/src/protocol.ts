@@ -1,4 +1,6 @@
-import type { CryptoErrorCode, EnvelopeMetadata } from "../../crypto-wasm/src/index.ts";
+import type { CryptoErrorCode } from "../../crypto-wasm/src/index.ts";
+
+export interface EnvelopeMetadata { accountId: string; vaultId: string | null; itemId: string | null; recordKind: string; keyVersion: bigint; }
 
 export type CryptoRequest =
   | { id: string; type: "create-item-session" }

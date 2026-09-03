@@ -1,0 +1,24 @@
+[package]
+name = "crypto-wasm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+# Standalone: B03 may not modify the frozen root Cargo workspace.
+[workspace]
+
+[dependencies]
+crypto-core = { path = "../../crates/crypto-core" }
+wasm-bindgen = "=0.2.108"
+# Enables the approved core's OS RNG dependency on browser WASM. This does
+# not add a primitive or change crypto-core's dependency selection.
+getrandom_02 = { package = "getrandom", version = "=0.2.17", features = ["js"] }
+# opaque-ke's approved closure also resolves getrandom 0.4; its browser
+# backend must be explicitly selected for wasm32-unknown-unknown.
+getrandom_04 = { package = "getrandom", version = "=0.4.3", features = ["wasm_js"] }
+
+[lints.rust]
+unsafe_code = "forbid"

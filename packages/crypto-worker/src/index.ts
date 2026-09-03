@@ -1,13 +1,23 @@
-import type { CryptoWasm } from "../../crypto-wasm/src/index.ts";
 import type { CryptoRequest, CryptoResponse } from "./protocol.ts";
 
 export type { CryptoRequest, CryptoResponse } from "./protocol.ts";
+
+/** Implemented by the generated WASM adapter; session values are opaque ids. */
+export interface CryptoBackend {
+  createItemSession(): number;
+  sealItemPayload(session: number, accountId: string, vaultId: string, itemId: string, keyVersion: bigint, plaintext: Uint8Array): Uint8Array;
+  openItemPayload(session: number, accountId: string, vaultId: string, itemId: string, keyVersion: bigint, envelope: Uint8Array): Uint8Array;
+  inspectEnvelope(envelope: Uint8Array): { accountId: string; vaultId: string | null; itemId: string | null; recordKind: string; keyVersion: bigint };
+  closeSession(session: number): void;
+}
 
 const errorCodes = new Set([
   "InvalidEncoding", "UnsupportedVersion", "NonCanonicalCbor", "UnknownField", "InvalidContext",
   "InvalidNonce", "AuthenticationFailed", "InvalidKdfParameters", "KdfResourceLimit", "InvalidKeyLength",
   "InvalidRecoveryKit", "Locked", "Internal",
 ]);
+const MAX_ITEM_BYTES = 1024 * 1024;
+const MAX_ENVELOPE_BYTES = MAX_ITEM_BYTES + 1024 + 16;
 
 /**
  * Owns WASM capabilities on the Worker side.  Messages deliberately have no
@@ -15,7 +25,7 @@ const errorCodes = new Set([
  */
 export class CryptoWorkerHost {
   private sessions = new Set<number>();
-  constructor(private readonly wasm: CryptoWasm) {}
+  constructor(private readonly wasm: CryptoBackend) {}
 
   handle(message: unknown): CryptoResponse {
     if (!isRequest(message)) return { id: "", ok: false, error: "InvalidEncoding" };
@@ -35,13 +45,34 @@ export class CryptoWorkerHost {
         case "inspect-envelope":
           return { id: message.id, ok: true, type: "metadata", metadata: this.wasm.inspectEnvelope(message.envelope) };
         case "lock":
-          for (const session of this.sessions) this.wasm.closeSession(session);
-          this.sessions.clear();
-          return { id: message.id, ok: true, type: "locked" };
+          return this.lock(message.id);
       }
     } catch (error) {
       return { id: message.id, ok: false, error: errorCode(error) };
     }
+  }
+
+  /** Best-effort close of every capability; a failing close cannot strand others. */
+  dispose(): void {
+    try {
+      for (const session of this.sessions) {
+        try { this.wasm.closeSession(session); } catch { /* continue closing */ }
+      }
+    } finally {
+      this.sessions.clear();
+    }
+  }
+
+  private lock(id: string): CryptoResponse {
+    let failed = false;
+    try {
+      for (const session of this.sessions) {
+        try { this.wasm.closeSession(session); } catch { failed = true; }
+      }
+    } finally {
+      this.sessions.clear();
+    }
+    return failed ? { id, ok: false, error: "Internal" } : { id, ok: true, type: "locked" };
   }
 }
 
@@ -56,14 +87,14 @@ function isRequest(value: unknown): value is CryptoRequest {
   const request = value as Record<string, unknown>;
   if (typeof request.id !== "string" || typeof request.type !== "string") return false;
   const exact = (keys: string[]) => Object.keys(request).length === keys.length && keys.every((key) => key in request);
-  const payload = (field: string) => request[field] instanceof Uint8Array;
-  const context = () => typeof request.session === "number" && typeof request.accountId === "string" && typeof request.vaultId === "string" && typeof request.itemId === "string" && typeof request.keyVersion === "bigint";
+  const payload = (field: string, cap: number) => request[field] instanceof Uint8Array && request[field].byteLength <= cap;
+  const context = () => typeof request.session === "number" && Number.isSafeInteger(request.session) && request.session >= 0 && typeof request.accountId === "string" && typeof request.vaultId === "string" && typeof request.itemId === "string" && typeof request.keyVersion === "bigint" && request.keyVersion > 0n;
   switch (request.type) {
     case "create-item-session": return exact(["id", "type"]);
     case "lock": return exact(["id", "type"]);
-    case "inspect-envelope": return exact(["id", "type", "envelope"]) && payload("envelope");
-    case "seal-item-payload": return exact(["id", "type", "session", "accountId", "vaultId", "itemId", "keyVersion", "plaintext"]) && context() && payload("plaintext");
-    case "open-item-payload": return exact(["id", "type", "session", "accountId", "vaultId", "itemId", "keyVersion", "envelope"]) && context() && payload("envelope");
+    case "inspect-envelope": return exact(["id", "type", "envelope"]) && payload("envelope", MAX_ENVELOPE_BYTES);
+    case "seal-item-payload": return exact(["id", "type", "session", "accountId", "vaultId", "itemId", "keyVersion", "plaintext"]) && context() && payload("plaintext", MAX_ITEM_BYTES);
+    case "open-item-payload": return exact(["id", "type", "session", "accountId", "vaultId", "itemId", "keyVersion", "envelope"]) && context() && payload("envelope", MAX_ENVELOPE_BYTES);
     default: return false;
   }
 }

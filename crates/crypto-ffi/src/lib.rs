@@ -10,8 +10,13 @@
 use std::sync::{Arc, Mutex};
 
 use crypto_core::envelope::{encode_aad, inspect_envelope, Context, RecordKind};
-use crypto_core::keys::{open_item_payload, seal_item_payload, ItemKey};
+use crypto_core::kdf::{derive_unlock_key, KdfParams};
+use crypto_core::keys::{
+    open_account_key_with_password, open_item_key, open_item_payload, open_vault_key,
+    seal_item_payload, ItemKey,
+};
 use crypto_core::Error;
+use zeroize::Zeroizing;
 
 uniffi::setup_scaffolding!();
 
@@ -74,6 +79,23 @@ pub struct EnvelopeMetadata {
     pub key_version: u64,
 }
 
+/// Persisted, encrypted hierarchy inputs required to open one item. This is
+/// deliberately envelopes/metadata only: it cannot contain a plaintext key.
+#[derive(uniffi::Record)]
+pub struct PersistedItemAccess {
+    pub account_id: String,
+    pub vault_id: String,
+    pub item_id: String,
+    pub account_key_version: u64,
+    pub vault_key_version: u64,
+    pub item_key_version: u64,
+    pub kdf_parameters_cbor: Vec<u8>,
+    pub reported_physical_memory_kib: u64,
+    pub wrapped_account_key: Vec<u8>,
+    pub wrapped_vault_key: Vec<u8>,
+    pub wrapped_item_key: Vec<u8>,
+}
+
 fn item_context<'a>(
     account_id: &'a str,
     vault_id: &'a str,
@@ -103,6 +125,45 @@ impl ItemSession {
         Arc::new(Self {
             key: Mutex::new(Some(ItemKey::generate())),
         })
+    }
+
+    /// Opens persisted wrappers entirely inside Rust. Password and derived
+    /// keys never become return values or serializable FFI fields.
+    #[uniffi::constructor]
+    pub fn unlock(
+        password: Vec<u8>,
+        access: PersistedItemAccess,
+    ) -> Result<Arc<Self>, CryptoFfiError> {
+        let password = Zeroizing::new(password);
+        let params = KdfParams::decode_canonical_cbor(
+            &access.kdf_parameters_cbor,
+            access.reported_physical_memory_kib,
+        )?;
+        let unlock = derive_unlock_key(&password, &params, access.reported_physical_memory_kib)?;
+        let account = open_account_key_with_password(
+            &unlock,
+            &access.wrapped_account_key,
+            &access.account_id,
+            access.account_key_version,
+        )?;
+        let vault = open_vault_key(
+            &account,
+            &access.wrapped_vault_key,
+            &access.account_id,
+            &access.vault_id,
+            access.vault_key_version,
+        )?;
+        let item = open_item_key(
+            &vault,
+            &access.wrapped_item_key,
+            &access.account_id,
+            &access.vault_id,
+            &access.item_id,
+            access.item_key_version,
+        )?;
+        Ok(Arc::new(Self {
+            key: Mutex::new(Some(item)),
+        }))
     }
 
     pub fn seal_item_payload(
@@ -212,6 +273,44 @@ mod tests {
         assert_eq!(
             encode_item_payload_aad("account_01".into(), "vault_01".into(), "item_01".into(), 1).unwrap(),
             hex("a6017263727970746f2d656e76656c6f70652f7631026a6163636f756e745f303103687661756c745f303104676974656d5f3031056c6974656d2d7061796c6f61640601")
+        );
+    }
+
+    #[test]
+    fn persisted_wrapper_lifecycle_opens_an_opaque_item_session() {
+        use crypto_core::keys::{
+            wrap_account_key_with_password, wrap_item_key, wrap_vault_key, AccountKey, VaultKey,
+        };
+
+        let password = vec![7];
+        let params = KdfParams::new(65_536, 3, 1, &[0; 16]).unwrap();
+        let unlock = derive_unlock_key(&password, &params, 65_536 * 4).unwrap();
+        let account = AccountKey::generate();
+        let vault = VaultKey::generate();
+        let item = ItemKey::generate();
+        let access = PersistedItemAccess {
+            account_id: "acct".into(),
+            vault_id: "vault".into(),
+            item_id: "item".into(),
+            account_key_version: 1,
+            vault_key_version: 1,
+            item_key_version: 1,
+            kdf_parameters_cbor: params.encode_canonical_cbor().unwrap(),
+            reported_physical_memory_kib: 65_536 * 4,
+            wrapped_account_key: wrap_account_key_with_password(&unlock, &account, "acct", 1)
+                .unwrap(),
+            wrapped_vault_key: wrap_vault_key(&account, &vault, "acct", "vault", 1).unwrap(),
+            wrapped_item_key: wrap_item_key(&vault, &item, "acct", "vault", "item", 1).unwrap(),
+        };
+        let session = ItemSession::unlock(password, access).unwrap();
+        let envelope = session
+            .seal_item_payload("acct".into(), "vault".into(), "item".into(), 1, vec![3])
+            .unwrap();
+        assert_eq!(
+            session
+                .open_item_payload("acct".into(), "vault".into(), "item".into(), 1, envelope)
+                .unwrap(),
+            vec![3]
         );
     }
 

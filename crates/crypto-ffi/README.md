@@ -1,6 +1,7 @@
 # crypto-ffi
 
-UniFFI boundary for future native clients. `ItemSession` is an opaque,
-in-memory capability: it generates and owns the key internally, returns only
-envelope/plaintext bytes, and becomes unusable after `close`. It has no raw-key
+UniFFI boundary for future native clients. `ItemSession::unlock` takes a
+password plus canonical KDF parameters and encrypted account/vault/item
+wrappers, then unwraps the full hierarchy inside Rust. It returns an opaque,
+in-memory capability that becomes unusable after `close`; it has no raw-key
 import/export API.

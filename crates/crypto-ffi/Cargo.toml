@@ -17,6 +17,7 @@ crate-type = ["cdylib", "lib"]
 crypto-core = { path = "../crypto-core" }
 uniffi = "=0.29.5"
 thiserror = "=2.0.18"
+zeroize = "=1.9.0"
 
 [lints.rust]
 unsafe_code = "forbid"
