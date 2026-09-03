@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/crypto-core"]
+members = ["crates/crypto-core", "crates/crypto-ffi"]
 resolver = "2"

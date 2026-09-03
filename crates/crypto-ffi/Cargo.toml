@@ -9,10 +9,6 @@ publish = false
 [lib]
 crate-type = ["cdylib", "lib"]
 
-# The root workspace is deliberately frozen.  Keeping this boundary standalone
-# avoids changing it while still allowing `cargo test -p crypto-ffi` here.
-[workspace]
-
 [dependencies]
 crypto-core = { path = "../crypto-core" }
 uniffi = "=0.29.5"

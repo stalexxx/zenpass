@@ -21,6 +21,15 @@
       "name": "@pass/contracts",
       "version": "0.1.0",
     },
+    "packages/crypto-wasm": {
+      "name": "crypto-wasm",
+    },
+    "packages/crypto-worker": {
+      "name": "crypto-worker",
+      "dependencies": {
+        "crypto-wasm": "workspace:*",
+      },
+    },
     "packages/sdk": {
       "name": "@zkpm/sdk",
     },
@@ -61,6 +70,10 @@
     "avvio": ["avvio@9.3.0", "", { "dependencies": { "@fastify/error": "^4.0.0", "fastq": "^1.17.1" } }, "sha512-g2tQ7LE7oOSqDfwEm3M+ZCMTJc7KiZCdJ4UwyZJb5ckTKyYu50OYmvv0mCFXPuYXoM4zkSt8zM9XQ9KCvxA74A=="],
 
     "cookie": ["cookie@1.1.1", "", {}, "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="],
+
+    "crypto-wasm": ["crypto-wasm@workspace:packages/crypto-wasm"],
+
+    "crypto-worker": ["crypto-worker@workspace:packages/crypto-worker"],
 
     "dequal": ["dequal@2.0.3", "", {}, "sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA=="],
 
