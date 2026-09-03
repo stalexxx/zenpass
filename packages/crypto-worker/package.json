@@ -1,0 +1,7 @@
+{
+  "name": "crypto-worker",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "bun test" },
+  "dependencies": { "crypto-wasm": "workspace:*" }
+}

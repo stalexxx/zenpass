@@ -1,0 +1,22 @@
+[package]
+name = "crypto-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "Safe UniFFI boundary for crypto-envelope/v1."
+license = "Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+# The root workspace is deliberately frozen.  Keeping this boundary standalone
+# avoids changing it while still allowing `cargo test -p crypto-ffi` here.
+[workspace]
+
+[dependencies]
+crypto-core = { path = "../crypto-core" }
+uniffi = "=0.29.5"
+thiserror = "=2.0.18"
+
+[lints.rust]
+unsafe_code = "forbid"
