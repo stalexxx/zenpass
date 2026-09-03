@@ -2,11 +2,26 @@
 name = "crypto-core"
 version = "0.1.0"
 edition = "2021"
-description = "Auditable cryptographic core boundary (implementation follows A04/H01)."
+description = "Auditable cryptographic core for crypto-envelope/v1 (ADR-0003 approved libraries)."
 license = "Apache-2.0"
 
 [lib]
 crate-type = ["lib"]
+
+# Exact pins mandated by ADR-0003 (Library approval table). Upgrades require
+# re-run vector verification and a new ADR row. `zeroize` is the memory-hygiene
+# helper already present in the approved closure (see H01-LIBRARY-EVIDENCE §3).
+# `sha2` and `rand` 0.8 are already non-optional dependencies of the approved
+# `opaque-ke` 4.0.1 closure; they are pinned here only to name the mandated
+# suite hasher (SHA-512) and the OS RNG, and add no new closure member.
+[dependencies]
+argon2 = { version = "=0.6.0", default-features = false, features = ["alloc"] }
+chacha20poly1305 = { version = "=0.11.0" }
+minicbor = { version = "=2.3.0", default-features = false, features = ["alloc"] }
+opaque-ke = { version = "=4.0.1" }
+rand = { version = "=0.8.5" }
+sha2 = { version = "=0.10.9" }
+zeroize = { version = "=1.9.0" }
 
 [lints.rust]
 unsafe_code = "forbid"
