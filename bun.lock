@@ -21,6 +21,9 @@
       "name": "@pass/contracts",
       "version": "0.1.0",
     },
+    "packages/crypto-server": {
+      "name": "crypto-server",
+    },
     "packages/crypto-wasm": {
       "name": "crypto-wasm",
     },
@@ -70,6 +73,8 @@
     "avvio": ["avvio@9.3.0", "", { "dependencies": { "@fastify/error": "^4.0.0", "fastq": "^1.17.1" } }, "sha512-g2tQ7LE7oOSqDfwEm3M+ZCMTJc7KiZCdJ4UwyZJb5ckTKyYu50OYmvv0mCFXPuYXoM4zkSt8zM9XQ9KCvxA74A=="],
 
     "cookie": ["cookie@1.1.1", "", {}, "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="],
+
+    "crypto-server": ["crypto-server@workspace:packages/crypto-server"],
 
     "crypto-wasm": ["crypto-wasm@workspace:packages/crypto-wasm"],
 
