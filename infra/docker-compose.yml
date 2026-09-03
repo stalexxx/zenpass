@@ -5,7 +5,7 @@ services:
       POSTGRES_DB: pass
       POSTGRES_USER: pass
       POSTGRES_PASSWORD: pass
-    ports: ["5432:5432"]
+    ports: ["5434:5432"]
     volumes: ["pass-postgres:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pass -d pass"]

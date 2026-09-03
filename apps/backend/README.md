@@ -7,7 +7,7 @@ auth and sync handlers belong to B04/B05.
 ## Local run
 
 From the repository root, start PostgreSQL with `docker compose -f
-infra/docker-compose.yml up -d postgres`, then run `bun run --filter @zkpm/backend
+infra/docker-compose.yml up -d postgres` (host port `5434`), then run `bun run --filter @zkpm/backend
 migrate` and `bun run --filter @zkpm/backend dev`.
 
 Production requires an explicit `DATABASE_URL`. The service never logs request

@@ -11,7 +11,7 @@ This file is maintained by the integration agent.
 | A04 | READY | crypto-spec agent | A01,A02 | H01 evidence records G-01..G-11; G-11 KDF CBOR defect and missing verifier/vectors require rework |
 | H01 | BLOCKED | human reviewer | A04 | Approval transcript identity/authority uncorroborated; checklist attestation and finding dispositions missing |
 | B01 | BLOCKED | rust agent | H01 | |
-| B02 | READY | backend agent | A02 | Review failed: required health/migration tests missing; allowed path names apps/api, implementation uses apps/backend |
+| B02 | MERGED | backend agent | A02 | Health, redaction, and repeatable PostgreSQL migration tests pass; Compose uses host port 5434 |
 | B03 | BLOCKED | bindings agent | B01 | |
 | B04 | BLOCKED | auth agent | B02,A02,H01 | |
 | B05 | BLOCKED | sync agent | B02,B04,A02 | |

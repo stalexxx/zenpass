@@ -20,7 +20,7 @@ export function loadConfig(env = process.env) {
     host: env.HOST || '127.0.0.1',
     port,
     logLevel,
-    databaseUrl: env.DATABASE_URL || (nodeEnv === 'development' ? 'postgres://pass:pass@127.0.0.1:5432/pass' : null),
+    databaseUrl: env.DATABASE_URL || (nodeEnv === 'development' ? 'postgres://pass:pass@127.0.0.1:5434/pass' : null),
     databaseSsl: env.DATABASE_SSL === 'true',
     requestIdHeader: 'x-request-id'
   });
