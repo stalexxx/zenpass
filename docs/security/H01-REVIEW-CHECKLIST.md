@@ -126,6 +126,11 @@ Required procedure once gaps G-01..G-05 are resolved:
 Today only step 1 is executable (existing fixtures). No positive AEAD,
 wrapping, or OPAQUE vectors exist and no verifier package exists (§4).
 
+Implementation routing for G-01..G-05, including the required A04 scope
+amendment, harness/adapter boundary, vector matrix, and reviewer evidence
+procedure, is specified in `H01-CRYPTO-FIXTURES-VERIFIER-PLAN.md`. That plan
+does not verify vectors or constitute approval.
+
 ### 3.3 Dependency/library review (AC-3) — no evidence yet
 
 Per `DEPENDENCY-POLICY.md`, crypto primitives require human security review

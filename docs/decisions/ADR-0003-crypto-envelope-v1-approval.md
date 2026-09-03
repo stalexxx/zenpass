@@ -18,6 +18,10 @@ Cryptographic implementation may not merge until this ADR carries a signature
 - Known evidence gaps G-01..G-11 are registered in
   `docs/security/H01-REVIEW-CHECKLIST.md` §4. Gaps G-01..G-06 and G-11 currently
   block full vector and library verification.
+- The dependency-neutral implementation routing and independent-validation
+  procedure for G-01..G-05 are documented in
+  `docs/security/H01-CRYPTO-FIXTURES-VERIFIER-PLAN.md`. It is not verification
+  evidence and does not select a production library.
 
 ## Decision to be approved (what a signature covers)
 
