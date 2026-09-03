@@ -22,6 +22,11 @@ Cryptographic implementation may not merge until this ADR carries a signature
   procedure for G-01..G-05 are documented in
   `docs/security/H01-CRYPTO-FIXTURES-VERIFIER-PLAN.md`. It is not verification
   evidence and does not select a production library.
+- The Argon2id target-device calibration evidence protocol for G-07 is
+  documented in `docs/security/H01-ARGON2ID-CALIBRATION-PROTOCOL.md`. It is
+  unsigned and non-binding, selects no parameter values, and records no
+  measurements; the evidence itself is to be produced by B01 (post-approval)
+  or A04 rework and reviewed by the human reviewer.
 
 ## Decision to be approved (what a signature covers)
 
@@ -60,6 +65,7 @@ verification with a new ADR row; suite changes require H01 re-approval.
 | AEAD round-trip + tamper rejection | — blocked (G-02) | — | — | — |
 | Key-wrapping vectors | — blocked (G-03) | — | — | — |
 | OPAQUE RFC 9807 vectors | — blocked (G-04) | — | — | — |
+| Argon2id target-device calibration (G-07; protocol: `docs/security/H01-ARGON2ID-CALIBRATION-PROTOCOL.md`) | — not yet performed | — | — | — |
 
 ## Findings record
 
