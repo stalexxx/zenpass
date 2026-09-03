@@ -83,7 +83,7 @@ resolution post-approval), security alternatives considered.
 | Exact version ([V] S1; **[P]** propose max **stable**) | 4.0.1 (published 2025-11-03). A prerelease 4.1.0-pre.2 (2026-03-27) exists and is **not** proposed |
 | License ([V] S1) | Apache-2.0 OR MIT |
 | Last stable release ([V] S1) | 2025-11-03 (v4.0.1); crate record updated 2026-03-27 |
-| MSRV ([V] S1) | 1.87 |
+| MSRV ([V] S1) | 1.85 (the 1.87 MSRV belongs to the unproposed 4.1.0-pre.2 prerelease) |
 | Downloads total / 90 days ([V] S1) | 592,401 / 130,800 |
 | Maintenance ([V] S1) | Repo `facebook/opaque-ke`; ~10 months since last stable release — activity level unverified **[U]** (§5 U-05) |
 | Audit history ([V] S4) | README: audited by NCC Group, June 2021, sponsored by WhatsApp; findings against v0.5.0, fixes in v1.2.0 — **audit predates 4.x by three major versions** |
@@ -101,11 +101,11 @@ resolution post-approval), security alternatives considered.
 |---|---|---|---|
 | Exact version ([V] S1) | 0.2.2 | 2.3.0 | 0.11.2 |
 | License ([V] S1) | Apache-2.0 (single, not dual) | **BlueOak-1.0.0** (unusual permissive license; see §5 U-08) | MIT/Apache-2.0 |
-| Last release ([V] S1) | 2024-01-24 (~20 months before query) | 2026-07-23 | 2021-08-15 |
+| Last release ([V] S1) | 2024-01-24 (19.3 months before query) | 2026-07-23 | 2021-08-15 |
 | MSRV ([V] S1) | 1.58 | not declared | not declared |
 | Downloads total / 90 days ([V] S1) | 227,009,596 / 56,187,830 | 13,989,498 / 5,055,737 | 80,977,478 / 10,185,382 |
-| Maintenance ([V] S1) | No release in ~20 months; repo commit activity unverified **[U]** (§5 U-04) | Recent release; active | Unmaintained |
-| RustSec ([V] S3) | none filed | none filed | **RUSTSEC-2021-0127 "serde_cbor is unmaintained"** (informational) |
+| Maintenance ([V] S1) | No release in 19.3 months; repository activity recorded in verification review §2.5 but maintenance health remains **[U]** (§5 U-04) | Recent release; active | Unmaintained |
+| RustSec ([V] S3) | none filed | none filed | **RUSTSEC-2021-0127 "serde_cbor is unmaintained"** (informational); RUSTSEC-2019-0025 / CVE-2019-25001 (nested-tag stack overflow; patched ≥ 0.10.2) |
 | Direct deps ([V] S2) | `ciborium-io ^0.2.2`, `ciborium-ll ^0.2.2`, `serde ^1.0.100` | optional only: `half ^2.4.0`, `minicbor-derive ^0.19.5` | not queried (rejected on S3) |
 | Canonical RFC 8949 §4.2.1 key-ordering support ([V] S4 absence) | No canonical/deterministic claim found in README — **unverified** (§5 U-03) | not checked — **unverified** (§5 U-03) | n/a (rejected) |
 | Alternatives considered | `minicbor`, `serde_cbor` (rejected) | `ciborium`, `serde_cbor` (rejected) | rejected: unmaintained advisory |
@@ -125,8 +125,8 @@ resolution post-approval), security alternatives considered.
 
 | Alternative | Rejection evidence | Class |
 |---|---|---|
-| `sodiumoxide 0.2.7` (libsodium FFI bindings) | RUSTSEC-2021-0137 "sodiumoxide is deprecated" **[V] S3**; last release 2021-06-24 **[V] S1**; FFI-based, in tension with the pure-Rust `unsafe_code = "forbid"` posture of `crates/crypto-core` (**[P]** architectural note, reviewer confirms) | AEAD/KDF |
-| `serde_cbor 0.11.2` | RUSTSEC-2021-0127 "serde_cbor is unmaintained" **[V] S3**; last release 2021-08-15 **[V] S1** | CBOR |
+| `sodiumoxide 0.2.7` (libsodium FFI bindings) | RUSTSEC-2021-0137 "sodiumoxide is deprecated"; RUSTSEC-2017-0001 / CVE-2017-1000168 and RUSTSEC-2019-0026 / CVE-2019-25002 (both patched in 0.2.7) **[V] S3**; last release 2021-06-24 **[V] S1**; FFI-based, in tension with the pure-Rust `unsafe_code = "forbid"` posture of `crates/crypto-core` (**[P]** architectural note, reviewer confirms) | AEAD/KDF |
+| `serde_cbor 0.11.2` | RUSTSEC-2021-0127 "serde_cbor is unmaintained" (informational); RUSTSEC-2019-0025 / CVE-2019-25001 (patched in 0.11.2) **[V] S3**; last release 2021-08-15 **[V] S1** | CBOR |
 | Any primitive hand-written in this repository | Prohibited by `AGENTS.md` ("Do not implement cryptographic primitives outside the Rust crypto-core") and SD-0001; noted for completeness | all |
 
 No claim is made that the rejected list is exhaustive; it covers only the
