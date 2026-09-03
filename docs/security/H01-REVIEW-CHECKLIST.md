@@ -1,10 +1,11 @@
 # H01 human security review — checklist and evidence map
 
 Prepared by the H01 preparation agent at commit `284e957` (branch
-`h01-review-prep-pi`). This document asserts **no approval**. Per `AGENTS.md`
-and `docs/tasks/H01.md`, only the human security reviewer may approve findings
-or freeze `crypto-envelope/v1`. This file maps every H01 acceptance item to
-concrete verification steps and current evidence, and registers known gaps.
+`h01-review-prep-pi`). The original preparation asserted no approval. On
+2026-09-03, reviewer `stalexxx` approved the contract **with findings** as
+recorded in ADR-0003; the approval is limited by F-2/F-3 and does not assert
+that every verification gap has been closed. This file maps every H01
+acceptance item to concrete verification steps and current evidence.
 
 Amendment 2026-09-03 (library-evidence agent): candidate
 library/license/maintenance evidence for G-06 was added in
@@ -31,12 +32,12 @@ Status legend:
 
 | # | H01 requirement (from `docs/tasks/H01.md`) | Reviewer verifies | Evidence location | Status |
 |---|---|---|---|---|
-| AC-1 | Threat model approved | Assets, boundaries, T01–T20 mitigations, metadata exposure are sound | `docs/security/THREAT-MODEL.md` (A01 MERGED) | ⏳ ⚠️ |
-| AC-2 | Crypto specification approved and `crypto-envelope/v1` frozen | Byte-level contract: envelope, AAD, CBOR rules, Argon2id, OPAQUE, errors, versioning | `docs/contracts/crypto-envelope-v1.md` (status: proposed) + `fixtures/crypto/` | ⏳ ⚠️ source-backed AEAD/OPAQUE vectors and the G-11 byte fix are present; wrap vectors and independent verification remain open |
-| AC-3 | Crypto libraries/dependencies approved | Named library + version + license + maintenance for each primitive | §3.3; candidate evidence table `docs/security/H01-LIBRARY-EVIDENCE.md` (verified facts, alternatives, uncertainty register; verdicts blank) | ⏳ ⚠️ candidate evidence prepared; selection and approval still pending (G-06) |
-| AC-4 | Recovery semantics approved | Independent wrap, reset revocation, no support bypass, irreversibility | `docs/security/RECOVERY.md`, contract "Recovery reset and rotation", `fixtures/crypto/recovery-semantics.json`; encoding worksheet `docs/security/H01-RECOVERY-ENCODING-WORKSHEET.md` (unsigned, no choice recorded) | ⏳ ⚠️ G-09, G-10 |
-| AC-5 | Independent vector verification | Fixtures re-derived/decrypted by a second, non-Rust implementation | §3.2 of this file; prep-agent run §3.2.1 (does not substitute) | ❌ G-01..G-05; G-11 byte repair still needs independent confirmation under G-05 |
-| AC-6 | Signed review record/ADR; Critical/High findings return A04 to READY | Findings logged with severity and disposition; signature recorded | `docs/decisions/ADR-0003-crypto-envelope-v1-approval.md` (unsigned draft) | ⏳ awaiting human |
+| AC-1 | Threat model approved | Assets, boundaries, T01–T20 mitigations, metadata exposure are sound | `docs/security/THREAT-MODEL.md` (A01 MERGED); ADR-0003 approval record | ✅ approved with F-2/F-3 limits |
+| AC-2 | Crypto specification approved and `crypto-envelope/v1` frozen | Byte-level contract: envelope, AAD, CBOR rules, Argon2id, OPAQUE, errors, versioning | `docs/contracts/crypto-envelope-v1.md` + `fixtures/crypto/`; ADR-0003 | ✅ frozen with F-2 constraints; independent verification remains deferred |
+| AC-3 | Crypto libraries/dependencies approved | Named library + version + license + maintenance for each primitive | ADR-0003 library table; `docs/security/H01-LIBRARY-EVIDENCE.md` | ✅ approved with F-3 pin-time verification; CBOR conditional under F-2 |
+| AC-4 | Recovery semantics approved | Independent wrap, reset revocation, no support bypass, irreversibility | `docs/security/RECOVERY.md`, contract, ADR-0003 | ✅ approved with F-2; G-09/G-10 remain deferred |
+| AC-5 | Independent vector verification | Fixtures re-derived/decrypted by a second, non-Rust implementation | §3.2; ADR-0003 F-2 | ⚠️ deferred by explicit F-2 acceptance; must complete before production crypto delivery |
+| AC-6 | Signed review record/ADR; Critical/High findings return A04 to READY | Findings logged with severity and disposition; signature recorded | `docs/decisions/ADR-0003-crypto-envelope-v1-approval.md` | ✅ approval with Medium findings F-2/F-3 |
 
 Pre-gate note: `docs/plan/STATUS.md` records A04 as `READY` after a **failed
 review** ("no crypto-fixtures package/verifier; AEAD and OPAQUE vectors

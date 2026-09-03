@@ -1,6 +1,9 @@
 # `crypto-envelope/v1` (normative)
 
-Status: proposed; implementation is blocked until H01 human security approval.
+Status: frozen — approved with findings in ADR-0003 on 2026-09-03. B01 must
+complete the mandatory canonical-CBOR, vector, calibration, dependency, and
+recovery-encoding follow-ups recorded in ADR-0003 F-2/F-3 before production
+crypto delivery; changes to this v1 contract require v2 and renewed approval.
 This is the byte-level contract for the Rust crypto-core and its WASM/UniFFI bindings.
 
 ## Fixed algorithms and sizes
