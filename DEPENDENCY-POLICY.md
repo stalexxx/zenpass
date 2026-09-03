@@ -5,7 +5,7 @@ Before adding one, the owning agent must document its purpose, license, maintena
 health, transitive impact, and security alternatives in an ADR under
 `docs/decisions/` and obtain integrator approval.
 
-- Lockfiles are committed and CI uses `corepack pnpm install --frozen-lockfile`.
+- Lockfiles are committed and CI uses `bun install --frozen-lockfile`.
 - Runtime dependencies must use maintained releases and exact or conservative ranges.
 - Cryptographic primitives may only be added to the Rust crypto-core after human
   security review; clients must not reimplement them.
