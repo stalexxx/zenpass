@@ -11,7 +11,7 @@ This file is maintained by the integration agent.
 | A04 | READY | crypto-spec agent | A01,A02 | Review failed: no crypto-fixtures package/verifier; AEAD and OPAQUE vectors incomplete |
 | H01 | BLOCKED | human reviewer | A04 | Human approval required before crypto implementation merge |
 | B01 | BLOCKED | rust agent | H01 | |
-| B02 | REVIEW | backend agent | A02 | Fastify foundation, migrations, redacted logging, infra skeleton |
+| B02 | READY | backend agent | A02 | Review failed: required health/migration tests missing; allowed path names apps/api, implementation uses apps/backend |
 | B03 | BLOCKED | bindings agent | B01 | |
 | B04 | BLOCKED | auth agent | B02,A02,H01 | |
 | B05 | BLOCKED | sync agent | B02,B04,A02 | |
