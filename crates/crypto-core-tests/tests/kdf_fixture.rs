@@ -96,8 +96,12 @@ fn positive_parameter_map_encodes_to_the_fixture_bytes() {
 #[test]
 fn decode_accepts_the_fixture_bytes_and_returns_the_declared_parameters() {
     let fixture = load();
-    let params = KdfParams::decode_canonical_cbor(&bytes_field(&fixture["canonicalCborHex"]))
-        .expect("fixture bytes are valid");
+    let params = KdfParams::decode_canonical_cbor(
+        &bytes_field(&fixture["canonicalCborHex"]),
+        // 65 536 KiB is exactly 25% of 256 MiB.
+        65_536 * 4,
+    )
+    .expect("fixture bytes are valid");
     let expected = &fixture["parameters"];
     assert_eq!(
         u64::from(params.memory_kib()),
@@ -119,7 +123,7 @@ fn canonical_reject_cases_fail_with_the_declared_errors() {
     let fixture = load();
     for case in fixture["canonicalReject"].as_array().unwrap() {
         let bytes = bytes_field(&case["encoding"]);
-        let error = KdfParams::decode_canonical_cbor(&bytes).unwrap_err();
+        let error = KdfParams::decode_canonical_cbor(&bytes, 65_536 * 4).unwrap_err();
         assert_eq!(
             error,
             expected_error(case["error"].as_str().unwrap()),
@@ -134,7 +138,7 @@ fn parameter_negative_cases_fail_with_invalid_kdf_parameters() {
     let fixture = load();
     for case in fixture["negative"].as_array().unwrap() {
         let bytes = params_with(&fixture, case);
-        let error = KdfParams::decode_canonical_cbor(&bytes).unwrap_err();
+        let error = KdfParams::decode_canonical_cbor(&bytes, 65_536 * 4).unwrap_err();
         assert_eq!(
             error,
             Error::InvalidKdfParameters,
@@ -148,11 +152,12 @@ fn parameter_negative_cases_fail_with_invalid_kdf_parameters() {
 fn derive_uses_the_fixture_parameters_deterministically() {
     let fixture = load();
     let params =
-        KdfParams::decode_canonical_cbor(&bytes_field(&fixture["canonicalCborHex"])).unwrap();
-    let a = kdf::derive_unlock_key(b"fixture-password", &params).unwrap();
-    let b = kdf::derive_unlock_key(b"fixture-password", &params).unwrap();
+        KdfParams::decode_canonical_cbor(&bytes_field(&fixture["canonicalCborHex"]), 65_536 * 4)
+            .unwrap();
+    let a = kdf::derive_unlock_key(b"fixture-password", &params, 65_536 * 4).unwrap();
+    let b = kdf::derive_unlock_key(b"fixture-password", &params, 65_536 * 4).unwrap();
     assert_eq!(a.as_bytes(), b.as_bytes());
-    let c = kdf::derive_unlock_key(b"other-password", &params).unwrap();
+    let c = kdf::derive_unlock_key(b"other-password", &params, 65_536 * 4).unwrap();
     assert_ne!(a.as_bytes(), c.as_bytes());
 }
 

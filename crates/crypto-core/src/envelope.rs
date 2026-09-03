@@ -290,14 +290,25 @@ pub fn open_envelope(
     let parts = decode_envelope(envelope)?;
     let expected_aad = expected_ctx.encode_aad()?;
     let embedded_ctx = decode_aad(parts.aad)?;
-    if embedded_ctx != *expected_ctx || embedded_ctx.key_version != parts.key_version {
+    // Three-way binding before any authentication is attempted: the outer
+    // envelope kind, the record type inside the authenticated AAD, and the
+    // caller's expected context must all agree, and the outer keyVersion
+    // must equal the AAD keyVersion. A substituted outer kind is rejected
+    // here even though the bytes otherwise decode.
+    if parts.kind != embedded_ctx.record_kind
+        || embedded_ctx != *expected_ctx
+        || embedded_ctx.key_version != parts.key_version
+    {
         return Err(Error::InvalidContext);
     }
     if parts.aad != expected_aad.as_slice() {
         return Err(Error::InvalidContext);
     }
     let plaintext = aead::open(key, parts.nonce, parts.ciphertext_and_tag, &expected_aad)?;
-    if !plaintext_within_limit(parts.kind, plaintext.len()) {
+    // Size limits are enforced under the authenticated record kind (the
+    // expected context the AAD bound), never under the outer envelope kind
+    // alone, which is only trusted after the three-way match above.
+    if !plaintext_within_limit(expected_ctx.record_kind, plaintext.len()) {
         return Err(Error::InvalidKeyLength);
     }
     Ok(plaintext)
@@ -306,10 +317,15 @@ pub fn open_envelope(
 /// Strictly decode only the metadata of an envelope without decrypting it.
 ///
 /// Useful for UI routing; performs the same canonical, version, key-set and
-/// nonce checks as [`open_envelope`] and returns the AAD context.
+/// nonce checks as [`open_envelope`], requires the outer kind to match the
+/// AAD record type, and returns the AAD context.
 pub fn inspect_envelope(envelope: &[u8]) -> Result<Context<'_>, Error> {
     let parts = decode_envelope(envelope)?;
-    decode_aad(parts.aad)
+    let ctx = decode_aad(parts.aad)?;
+    if parts.kind != ctx.record_kind {
+        return Err(Error::InvalidContext);
+    }
+    Ok(ctx)
 }
 
 #[cfg(test)]
@@ -453,6 +469,46 @@ mod tests {
     fn inspect_returns_embedded_context() {
         let envelope = seal_envelope(&KEY, &item_ctx(), b"secret payload").unwrap();
         assert_eq!(inspect_envelope(&envelope).unwrap(), item_ctx());
+    }
+
+    #[test]
+    fn outer_kind_substitution_rejects_before_authentication() {
+        // Structured attack: re-encode a genuine item-payload envelope with
+        // the outer kind swapped to item-wrap while the AAD (and ciphertext)
+        // still bind item-payload. The bytes are canonical and well-formed;
+        // only the three-way kind binding can catch it.
+        let envelope = seal_envelope(&KEY, &item_ctx(), b"secret payload").unwrap();
+        let map = canon::StrictMap::decode(&envelope).unwrap();
+        let substituted = canon::encode_owned(vec![
+            canon::text(1, FORMAT_VERSION),
+            canon::text(2, RecordKind::ItemWrap.as_str()),
+            canon::int(3, map.get_int(3).unwrap()),
+            canon::bytes(4, map.get_bytes(4).unwrap().to_vec()),
+            canon::bytes(5, map.get_bytes(5).unwrap().to_vec()),
+            canon::bytes(6, map.get_bytes(6).unwrap().to_vec()),
+        ])
+        .unwrap();
+        // Opening with the genuine context must reject: the outer kind does
+        // not match the AAD record type.
+        assert_eq!(
+            open_envelope(&KEY, &item_ctx(), &substituted).unwrap_err(),
+            Error::InvalidContext
+        );
+        // Opening with the substituted kind's context also rejects: the
+        // authenticated AAD still binds item-payload.
+        let mut wrap_ctx = item_ctx();
+        wrap_ctx.record_kind = RecordKind::ItemWrap;
+        assert_eq!(
+            open_envelope(&KEY, &wrap_ctx, &substituted).unwrap_err(),
+            Error::InvalidContext
+        );
+        // Metadata inspection rejects the same substitution.
+        assert_eq!(
+            inspect_envelope(&substituted).unwrap_err(),
+            Error::InvalidContext
+        );
+        // The unmodified envelope still opens (control).
+        assert!(open_envelope(&KEY, &item_ctx(), &envelope).is_ok());
     }
 
     fn hex(s: &str) -> Vec<u8> {

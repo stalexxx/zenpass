@@ -7,7 +7,8 @@ license = "Apache-2.0"
 publish = false
 
 # Standalone test workspace: the root workspace manifest is frozen for this
-# task, so this crate forms its own workspace root. Run with
+# task, so this crate forms its own workspace root. Run the complete B01
+# verification (this crate plus the root workspace) via ./run.sh, or
 # `cargo test --workspace` from this directory.
 [workspace]
 

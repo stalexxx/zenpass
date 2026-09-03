@@ -119,7 +119,7 @@ fn kdf_parameter_map_mutation_smoke_never_panics() {
                 mutated[at] = rng.next() as u8;
             }
         }
-        if let Ok(decoded) = KdfParams::decode_canonical_cbor(&mutated) {
+        if let Ok(decoded) = KdfParams::decode_canonical_cbor(&mutated, u32::MAX as u64) {
             // A mutation that still decodes must satisfy every bound.
             assert!(decoded.memory_kib() >= 65_536, "iteration {i}");
             assert!(decoded.iterations() >= 3, "iteration {i}");

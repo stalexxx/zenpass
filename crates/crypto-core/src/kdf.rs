@@ -145,13 +145,19 @@ impl KdfParams {
 
     /// Strictly decode and validate a parameter map.
     ///
-    /// Encoding violations (non-minimal integers, unordered keys, tags,
-    /// floats, indefinite lengths) reject as [`Error::NonCanonicalCbor`];
-    /// structurally canonical but semantically invalid values (wrong
-    /// algorithm/version, out-of-bounds parameters, wrong salt or output
-    /// length — including the historical G-11 `0x20` encoding of -1) reject
-    /// as [`Error::InvalidKdfParameters`].
-    pub fn decode_canonical_cbor(bytes: &[u8]) -> Result<Self, Error> {
+    /// The physical-memory cap is mandatory on every path that accepts
+    /// persisted parameters: the caller must supply the reported physical
+    /// memory, and parameters exceeding 25% of it reject with
+    /// [`Error::KdfResourceLimit`]. Encoding violations (non-minimal
+    /// integers, unordered keys, tags, floats, indefinite lengths) reject as
+    /// [`Error::NonCanonicalCbor`]; structurally canonical but semantically
+    /// invalid values (wrong algorithm/version, out-of-bounds parameters,
+    /// wrong salt or output length — including the historical G-11 `0x20`
+    /// encoding of -1) reject as [`Error::InvalidKdfParameters`].
+    pub fn decode_canonical_cbor(
+        bytes: &[u8],
+        reported_physical_memory_kib: u64,
+    ) -> Result<Self, Error> {
         let map = StrictMap::decode(bytes)?;
         map.require_keys(&[1, 2, 3, 4, 5, 6, 7])?;
         map.assert_canonical_bytes(bytes)?;
@@ -171,7 +177,9 @@ impl KdfParams {
         if map.get_int(7) != Some(OUTPUT_LEN as i64) {
             return Err(Error::InvalidKdfParameters);
         }
-        Self::new(memory_kib, iterations, parallelism, salt)
+        let params = Self::new(memory_kib, iterations, parallelism, salt)?;
+        params.validate_against_memory_cap(reported_physical_memory_kib)?;
+        Ok(params)
     }
 }
 
@@ -182,11 +190,19 @@ fn positive_u32(value: Option<i64>) -> Result<u32, Error> {
 
 /// Derive an [`UnlockKey`] from a password with Argon2id.
 ///
-/// Output is 32 bytes in a zeroizing buffer. The caller supplies validated
-/// parameters; persisted parameters must be decoded with
-/// [`KdfParams::decode_canonical_cbor`] first, which enforces the bounds.
-pub fn derive_unlock_key(password: &[u8], params: &KdfParams) -> Result<UnlockKey, Error> {
+/// Output is 32 bytes in a zeroizing buffer. The reported physical memory
+/// is a mandatory argument: persisted parameters may never be used for
+/// derivation without enforcing the contract cap of at most 25% of reported
+/// physical memory (violation rejects with [`Error::KdfResourceLimit`]).
+/// Persisted parameter bytes must be decoded with
+/// [`KdfParams::decode_canonical_cbor`], which enforces the same cap.
+pub fn derive_unlock_key(
+    password: &[u8],
+    params: &KdfParams,
+    reported_physical_memory_kib: u64,
+) -> Result<UnlockKey, Error> {
     params.validate()?;
+    params.validate_against_memory_cap(reported_physical_memory_kib)?;
     let mut builder = ParamsBuilder::new();
     builder
         .m_cost(params.memory_kib)
@@ -219,11 +235,16 @@ const CALIBRATION_WARMUP: usize = 1;
 /// value iterations start at 3 and double until the median reaches the
 /// window. Every returned candidate satisfies the contract minima by
 /// construction; parameters are never weakened because no out-of-bounds
-/// value can be produced.
+/// value can be produced. A `max_memory_kib` below the contract memory
+/// minimum means no compliant candidate exists and rejects with
+/// [`Error::KdfResourceLimit`] — the cap is never silently raised. An empty
+/// or inverted target window is a caller bug and rejects with
+/// [`Error::InvalidKdfParameters`].
 ///
 /// `password` and `salt` are calibration inputs; they must be test-only or
 /// at least not weakly-held production secrets, since derivation timing is
-/// observable by the caller.
+/// observable by the caller. Production callers must use
+/// [`calibrate_for_setup`], which fixes the contract window of 500–1000 ms.
 pub fn calibrate(
     target_min_ms: u64,
     target_max_ms: u64,
@@ -235,12 +256,15 @@ pub fn calibrate(
     if parallelism < MIN_PARALLELISM {
         return Err(Error::InvalidKdfParameters);
     }
-    if target_min_ms > target_max_ms {
+    if target_min_ms == 0 || target_min_ms > target_max_ms {
         return Err(Error::InvalidKdfParameters);
     }
-    let largest = largest_power_of_two_at_most(
-        max_memory_kib.clamp(u64::from(MIN_MEMORY_KIB), u64::from(MAX_MEMORY_KIB)),
-    );
+    if max_memory_kib < u64::from(MIN_MEMORY_KIB) {
+        // No compliant candidate can exist below the contract memory
+        // minimum; fail closed rather than clamping the caller's cap up.
+        return Err(Error::KdfResourceLimit);
+    }
+    let largest = largest_power_of_two_at_most(max_memory_kib.min(u64::from(MAX_MEMORY_KIB)));
     let mut memory_kib = largest;
     while memory_kib >= MIN_MEMORY_KIB {
         let mut iterations = MIN_ITERATIONS;
@@ -275,18 +299,39 @@ fn largest_power_of_two_at_most(cap: u64) -> u32 {
     } else {
         bits - 1
     };
-    // cap >= 65536 is guaranteed by clamp in calibrate, so exponent >= 16.
+    // cap >= 65536 is guaranteed by the KdfResourceLimit guard in calibrate,
+    // so exponent >= 16.
     1u32 << exponent
 }
 
+/// Contract production calibration for first setup: the target window is
+/// fixed at 500–1000 ms and the memory ceiling is derived from the reported
+/// physical memory as at most 25% of it.
+///
+/// Returns in-window in-bounds parameters, or [`Error::KdfResourceLimit`]
+/// when no compliant candidate exists for the reported device (for example
+/// a reported memory whose quarter is below the 64 MiB contract minimum).
+pub fn calibrate_for_setup(
+    reported_physical_memory_kib: u64,
+    parallelism: u32,
+    password: &[u8],
+    salt: &[u8; SALT_LEN],
+) -> Result<KdfParams, Error> {
+    let max_memory_kib = reported_physical_memory_kib / 4;
+    calibrate(500, 1000, max_memory_kib, parallelism, password, salt)
+}
+
 fn median_derive_ms(password: &[u8], params: &KdfParams) -> u64 {
+    // Ladder candidates never exceed the caller's memory ceiling, so the
+    // candidate's own memory always satisfies its cap.
+    let cap = u64::from(params.memory_kib()) * 4;
     for _ in 0..CALIBRATION_WARMUP {
-        let _ = derive_unlock_key(password, params);
+        let _ = derive_unlock_key(password, params, cap);
     }
     let mut samples: Vec<u64> = Vec::with_capacity(CALIBRATION_SAMPLES);
     for _ in 0..CALIBRATION_SAMPLES {
         let start = std::time::Instant::now();
-        let _ = derive_unlock_key(password, params);
+        let _ = derive_unlock_key(password, params, cap);
         samples.push(start.elapsed().as_millis() as u64);
     }
     samples.sort_unstable();
@@ -318,9 +363,11 @@ mod tests {
 
     #[test]
     fn decode_accepts_fixture_bytes() {
-        let params =
-            KdfParams::decode_canonical_cbor(&hex(FIXTURE_CANONICAL.strip_prefix("hex:").unwrap()))
-                .unwrap();
+        let params = KdfParams::decode_canonical_cbor(
+            &hex(FIXTURE_CANONICAL.strip_prefix("hex:").unwrap()),
+            65_536 * 4,
+        )
+        .unwrap();
         assert_eq!(params.memory_kib(), 65_536);
         assert_eq!(params.iterations(), 3);
         assert_eq!(params.parallelism(), 1);
@@ -328,10 +375,29 @@ mod tests {
     }
 
     #[test]
+    fn decode_enforces_the_mandatory_memory_cap() {
+        // 65 536 KiB is exactly 25% of 256 MiB: accepted.
+        assert!(KdfParams::decode_canonical_cbor(
+            &hex(FIXTURE_CANONICAL.strip_prefix("hex:").unwrap()),
+            65_536 * 4
+        )
+        .is_ok());
+        // One KiB short of the 25% cap: rejected with KdfResourceLimit.
+        assert_eq!(
+            KdfParams::decode_canonical_cbor(
+                &hex(FIXTURE_CANONICAL.strip_prefix("hex:").unwrap()),
+                65_536 * 4 - 1
+            )
+            .unwrap_err(),
+            Error::KdfResourceLimit
+        );
+    }
+
+    #[test]
     fn historical_g11_negative_one_rejects_as_invalid_kdf_parameters() {
         let bytes = hex("a701686172676f6e3269640213031a00010000040305010650000102030405060708090a0b0c0d0e0f0720");
         assert_eq!(
-            KdfParams::decode_canonical_cbor(&bytes).unwrap_err(),
+            KdfParams::decode_canonical_cbor(&bytes, 65_536 * 4).unwrap_err(),
             Error::InvalidKdfParameters
         );
     }
@@ -340,7 +406,7 @@ mod tests {
     fn non_minimal_version_rejects_as_non_canonical() {
         let bytes = hex("a701686172676f6e326964021813031a00010000040305010650000102030405060708090a0b0c0d0e0f071820");
         assert_eq!(
-            KdfParams::decode_canonical_cbor(&bytes).unwrap_err(),
+            KdfParams::decode_canonical_cbor(&bytes, 65_536 * 4).unwrap_err(),
             Error::NonCanonicalCbor
         );
     }
@@ -382,28 +448,87 @@ mod tests {
     fn derive_is_deterministic_and_salt_sensitive() {
         let p1 = KdfParams::new(65_536, 3, 1, &[1u8; 16]).unwrap();
         let p2 = KdfParams::new(65_536, 3, 1, &[2u8; 16]).unwrap();
-        let a = derive_unlock_key(b"correct horse battery staple", &p1).unwrap();
-        let a_again = derive_unlock_key(b"correct horse battery staple", &p1).unwrap();
-        let b = derive_unlock_key(b"correct horse battery staple", &p2).unwrap();
-        let c = derive_unlock_key(b"Correct horse battery staple", &p1).unwrap();
+        let a = derive_unlock_key(b"correct horse battery staple", &p1, 65_536 * 4).unwrap();
+        let a_again = derive_unlock_key(b"correct horse battery staple", &p1, 65_536 * 4).unwrap();
+        let b = derive_unlock_key(b"correct horse battery staple", &p2, 65_536 * 4).unwrap();
+        let c = derive_unlock_key(b"Correct horse battery staple", &p1, 65_536 * 4).unwrap();
         assert_eq!(a.as_bytes(), a_again.as_bytes());
         assert_ne!(a.as_bytes(), b.as_bytes());
         assert_ne!(a.as_bytes(), c.as_bytes());
     }
 
     #[test]
+    fn derive_enforces_the_mandatory_memory_cap() {
+        let params = KdfParams::new(65_536, 3, 1, &[1u8; 16]).unwrap();
+        // Exactly 25%: allowed.
+        assert!(derive_unlock_key(b"pw", &params, 65_536 * 4).is_ok());
+        // Below 25%: derivation refuses to run.
+        assert_eq!(
+            derive_unlock_key(b"pw", &params, 65_536 * 4 - 1).unwrap_err(),
+            Error::KdfResourceLimit
+        );
+    }
+
+    #[test]
     fn calibrate_returns_in_window_candidate_or_resource_limit() {
         let salt = [0u8; 16];
         // A window that is trivially reachable: minimum bounds land inside.
-        let params = calibrate(0, 60_000, 65_536, 1, b"calibration-input", &salt).unwrap();
+        let params = calibrate(1, 60_000, 65_536, 1, b"calibration-input", &salt).unwrap();
         assert!(params.memory_kib() >= MIN_MEMORY_KIB);
         assert!(params.iterations() >= MIN_ITERATIONS);
         assert_eq!(params.parallelism(), 1);
         // An unreachable window fails closed with KdfResourceLimit and never
         // violates the minima.
         assert_eq!(
-            calibrate(0, 0, 65_536, 1, b"calibration-input", &salt).unwrap_err(),
+            calibrate(1, 1, 65_536, 1, b"calibration-input", &salt).unwrap_err(),
             Error::KdfResourceLimit
         );
+    }
+
+    #[test]
+    fn calibrate_rejects_invalid_windows_and_insufficient_caps() {
+        let salt = [0u8; 16];
+        // Empty or inverted windows are caller bugs.
+        assert_eq!(
+            calibrate(0, 1_000, 65_536, 1, b"calibration-input", &salt).unwrap_err(),
+            Error::InvalidKdfParameters
+        );
+        assert_eq!(
+            calibrate(1_000, 500, 65_536, 1, b"calibration-input", &salt).unwrap_err(),
+            Error::InvalidKdfParameters
+        );
+        // A cap below the contract memory minimum means no compliant
+        // candidate exists: fail closed, never clamp the cap up.
+        assert_eq!(
+            calibrate(500, 1_000, 65_535, 1, b"calibration-input", &salt).unwrap_err(),
+            Error::KdfResourceLimit
+        );
+    }
+
+    #[test]
+    fn calibrate_for_setup_uses_the_contract_window() {
+        let salt = [0u8; 16];
+        // A device whose quarter-memory is below the contract minimum has
+        // no compliant candidate (deterministic).
+        assert_eq!(
+            calibrate_for_setup(65_536, 1, b"calibration-input", &salt).unwrap_err(),
+            Error::KdfResourceLimit
+        );
+        // With a compliant memory ceiling, the outcome is host-timing
+        // dependent and must be one of exactly two contract-compliant
+        // results: in-window in-bounds parameters, or fail-closed
+        // KdfResourceLimit (e.g. a host where even minimum parameters
+        // exceed the 1000 ms ceiling). Out-of-bounds parameters can never
+        // be produced.
+        match calibrate_for_setup(65_536 * 4, 1, b"calibration-input", &salt) {
+            Ok(params) => {
+                assert!(params.memory_kib() >= MIN_MEMORY_KIB);
+                assert!(params.memory_kib() <= 65_536);
+                assert!(params.iterations() >= MIN_ITERATIONS);
+                assert_eq!(params.parallelism(), 1);
+            }
+            Err(Error::KdfResourceLimit) => {}
+            Err(other) => panic!("unexpected error {other:?}"),
+        }
     }
 }

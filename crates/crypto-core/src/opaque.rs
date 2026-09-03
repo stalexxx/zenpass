@@ -79,9 +79,10 @@ pub struct ClientRegistrationStartResult {
 
 impl ClientRegistrationStartResult {
     /// Opaque client-state bytes; required to finish registration later.
+    /// Secret: zeroized on drop.
     #[must_use]
-    pub fn state_bytes(&self) -> Vec<u8> {
-        self.state.serialize().to_vec()
+    pub fn state_bytes(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new(self.state.serialize().to_vec())
     }
 }
 
@@ -95,10 +96,11 @@ impl ServerSetupHandle {
         Self(ServerSetup::<OpaqueSuite>::new(&mut OsRng))
     }
 
-    /// Serialized form for at-rest storage.
+    /// Serialized form for at-rest storage. Secret (holds the server
+    /// private key and OPRF seed): zeroized on drop.
     #[must_use]
-    pub fn serialize(&self) -> Vec<u8> {
-        self.0.serialize().to_vec()
+    pub fn serialize(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new(self.0.serialize().to_vec())
     }
 
     /// Restore from serialized form.
@@ -132,9 +134,10 @@ pub struct ClientLoginStartResult {
 
 impl ClientLoginStartResult {
     /// Opaque client-state bytes; required to finish login later.
+    /// Secret: zeroized on drop.
     #[must_use]
-    pub fn state_bytes(&self) -> Vec<u8> {
-        self.state.serialize().to_vec()
+    pub fn state_bytes(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new(self.state.serialize().to_vec())
     }
 }
 
@@ -147,9 +150,10 @@ pub struct ServerLoginStartResult {
 
 impl ServerLoginStartResult {
     /// Opaque server-state bytes; required to finish login later.
+    /// Secret: zeroized on drop.
     #[must_use]
-    pub fn state_bytes(&self) -> Vec<u8> {
-        self.state.serialize().to_vec()
+    pub fn state_bytes(&self) -> Zeroizing<Vec<u8>> {
+        Zeroizing::new(self.state.serialize().to_vec())
     }
 }
 
@@ -223,11 +227,15 @@ pub fn client_registration_finish(
 }
 
 /// Persist the server-side password file from the upload message.
-pub fn server_registration_finish(upload: &[u8]) -> Result<Vec<u8>, Error> {
+///
+/// The returned record is secret at-rest material and is zeroized on drop.
+pub fn server_registration_finish(upload: &[u8]) -> Result<Zeroizing<Vec<u8>>, Error> {
     let upload = RegistrationUpload::<OpaqueSuite>::deserialize(upload).map_err(auth)?;
-    Ok(ServerRegistration::<OpaqueSuite>::finish(upload)
-        .serialize()
-        .to_vec())
+    Ok(Zeroizing::new(
+        ServerRegistration::<OpaqueSuite>::finish(upload)
+            .serialize()
+            .to_vec(),
+    ))
 }
 
 /// Begin client login with a password.
