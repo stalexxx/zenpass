@@ -22,6 +22,14 @@ export function loadConfig(env = process.env) {
     logLevel,
     databaseUrl: env.DATABASE_URL || (nodeEnv === 'development' ? 'postgres://pass:pass@127.0.0.1:5434/pass' : null),
     databaseSsl: env.DATABASE_SSL === 'true',
-    requestIdHeader: 'x-request-id'
+    requestIdHeader: 'x-request-id',
+    // ADR-0006 §3: process-wide OPAQUE server setup, base64. Required in
+    // production; auto-generated ephemerally otherwise.
+    opaqueServerSetup: env.OPAQUE_SERVER_SETUP || null,
+    // ADR-0006 §7 / ADR-0005 §1: short-lived session lifetime.
+    sessionTtlSeconds: Number(env.SESSION_TTL_SECONDS || 900),
+    // ADR-0005 §3: durable fixed-window login-throttling parameters.
+    authRateLimitMax: Number(env.AUTH_RATE_LIMIT_MAX || 10),
+    authRateLimitWindowSeconds: Number(env.AUTH_RATE_LIMIT_WINDOW_SECONDS || 300)
   });
 }
