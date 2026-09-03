@@ -27,6 +27,15 @@ Cryptographic implementation may not merge until this ADR carries a signature
   unsigned and non-binding, selects no parameter values, and records no
   measurements; the evidence itself is to be produced by B01 (post-approval)
   or A04 rework and reviewed by the human reviewer.
+- Candidate library evidence for G-06 (commit `6b21492`, branch
+  `stalexxx/h01-library-evidence-opencode`) was independently re-verified
+  against crates.io, the RustSec advisory-db, and pinned project refs on
+  2026-09-03; corrections C-1..C-4 and the still-unverified claim register are
+  recorded in `docs/security/H01-LIBRARY-EVIDENCE-VERIFICATION.md`. Neither
+  document selects or approves a library; the table below is completed only by
+  the human reviewer, with versions re-verified at pin time. Note:
+  `DEPENDENCY-POLICY.md`, cited by the review checklist (§3.3) and the
+  candidate evidence, does not exist in this repository (see verification §0).
 
 ## Decision to be approved (what a signature covers)
 
