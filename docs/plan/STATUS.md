@@ -8,8 +8,8 @@ This file is maintained by the integration agent.
 | A01 | MERGED | security agent | A00 | 20 threats mapped to mitigations and verification |
 | A02 | MERGED | contracts agent | A00 | OpenAPI, schemas, fixtures, and sync state machine added |
 | A03 | MERGED | coordinator | A00 | UX flows and accessibility states documented |
-| A04 | READY | crypto-spec agent | A01,A02 | Review failed: no crypto-fixtures package/verifier; AEAD and OPAQUE vectors incomplete |
-| H01 | BLOCKED | human reviewer | A04 | Human approval required before crypto implementation merge |
+| A04 | READY | crypto-spec agent | A01,A02 | H01 evidence records G-01..G-11; G-11 KDF CBOR defect and missing verifier/vectors require rework |
+| H01 | BLOCKED | human reviewer | A04 | Approval transcript identity/authority uncorroborated; checklist attestation and finding dispositions missing |
 | B01 | BLOCKED | rust agent | H01 | |
 | B02 | READY | backend agent | A02 | Review failed: required health/migration tests missing; allowed path names apps/api, implementation uses apps/backend |
 | B03 | BLOCKED | bindings agent | B01 | |

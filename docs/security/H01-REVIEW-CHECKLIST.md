@@ -188,7 +188,7 @@ freeze decision and must not be silently assumed approved.
 
 | ID | Gap | Blocks | Resolution owner |
 |---|---|---|---|
-| G-01 | No `crypto-fixtures` verifier package; A04 command `pnpm test --filter crypto-fixtures` is also stale (workspace migrated to Bun) | AC-5 | A04 rework (integrator dispatch) |
+| G-01 | No `crypto-fixtures` verifier package; A04 command `bun run --filter crypto-fixtures test` is also not yet executable (workspace uses Bun) | AC-5 | A04 rework (integrator dispatch) |
 | G-02 | No positive AEAD round-trip vectors; fixture ciphertexts are placeholders, not real XChaCha20-Poly1305 output | AC-5, AC-2 | A04 rework |
 | G-03 | No key-wrapping vectors (account/recovery/vault/item) | AC-5 | A04 rework |
 | G-04 | No OPAQUE (RFC 9807) vectors | AC-5 | A04 rework |
