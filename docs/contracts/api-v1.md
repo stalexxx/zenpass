@@ -15,3 +15,11 @@ All endpoints are under `/v1`; the OpenAPI server URL is illustrative and must b
 - `/vaults/{vaultId}/items`, `/vaults/{vaultId}/changes`
 
 All item payloads are opaque ciphertext. Request bodies, tokens, passwords, and ciphertext are excluded from logs.
+
+## Authentication session semantics
+
+An incomplete OPAQUE login exchange returns `OpaqueMessage`; a successful final
+exchange returns the existing `Session` body. Tokens never appear inside an
+OPAQUE message, URL, or log. Session/device binding, refresh eligibility,
+durable account-scoped login throttling, device revoke, and recovery-reset
+revocation are specified by ADR-0005.

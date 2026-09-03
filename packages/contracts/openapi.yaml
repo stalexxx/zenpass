@@ -15,7 +15,7 @@ paths:
     post:
       operationId: opaqueLogin
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OpaqueLoginRequest' } } } }
-      responses: { '200': { description: Login continuation, content: { application/json: { schema: { $ref: '#/components/schemas/OpaqueMessage' } } } }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      responses: { '200': { description: Login continuation or completed session, content: { application/json: { schema: { oneOf: [{ $ref: '#/components/schemas/OpaqueMessage' }, { $ref: '#/components/schemas/Session' }] } } } }, '401': { $ref: '#/components/responses/Unauthorized' } }
   /auth/refresh:
     post: { operationId: refresh, responses: { '200': { $ref: '#/components/responses/Session' }, '401': { $ref: '#/components/responses/Unauthorized' } } }
   /auth/logout:

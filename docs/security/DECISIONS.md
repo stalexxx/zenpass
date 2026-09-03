@@ -12,6 +12,7 @@ external audit.
 | SD-0004 | Loss of both master password and recovery key is irreversible; support has no bypass | Recovery decision / approved in principle | Human | RECOVERY.md and T14 tests | A01,A03,A04,B04,C01,Q01 |
 | SD-0005 | Metadata leakage is minimized, not zero; budget and retention require approval | ADR-0004 / open (unsigned draft) | Pending | T11 verification and metadata inventory; `docs/decisions/ADR-0004-metadata-leakage-budget-retention.md` (unsigned draft, decisions pending) | A01,A02,B02,B05,Q01,R01 |
 | SD-0006 | Public release is blocked by unresolved Critical/High findings and requires external audit | Release gate / approved | Human | MASTER.md and Q01/H02 evidence | Q01,H02,R01 |
+| SD-0007 | Final OPAQUE login returns `Session`; durable session-device binding and account-scoped PostgreSQL auth throttling govern refresh/revocation | ADR-0005 / approved | stalexxx via integrator decision | ADR-0005; api/v1 response schema | B04,B05,Q01,H02 |
 
 ## Change procedure
 
