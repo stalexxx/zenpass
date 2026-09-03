@@ -1,0 +1,12 @@
+[package]
+name = "crypto-core"
+version = "0.1.0"
+edition = "2021"
+description = "Auditable cryptographic core boundary (implementation follows A04/H01)."
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["lib"]
+
+[lints.rust]
+unsafe_code = "forbid"

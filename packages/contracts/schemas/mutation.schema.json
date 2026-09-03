@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pass.example/schemas/mutation-v1.json",
+  "title": "Opaque item mutation",
+  "type": "object", "additionalProperties": false,
+  "required": ["mutationId", "itemId", "vaultId", "baseRevision", "ciphertext", "envelopeVersion", "deleted"],
+  "properties": {
+    "mutationId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" },
+    "itemId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" },
+    "vaultId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" },
+    "baseRevision": { "type": "integer", "minimum": 0 },
+    "ciphertext": { "type": "string", "pattern": "^b64:[A-Za-z0-9+/]+={0,2}$" },
+    "envelopeVersion": { "const": "crypto-envelope/v1" }, "deleted": { "type": "boolean" }
+  }
+}

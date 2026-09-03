@@ -1,0 +1,19 @@
+{
+  "id": "envelope-malformed-01",
+  "validEnvelopeShape": {
+    "formatVersion": "crypto-envelope/v1",
+    "kind": "item-payload",
+    "keyVersion": 1,
+    "nonce": "hex:000102030405060708090a0b0c0d0e0f1011121314151617",
+    "ciphertext": "hex:00112233445566778899aabbccddeeff",
+    "aad": "hex:a6017263727970746f2d656e76656c6f70652f7631026a6163636f756e745f303103687661756c745f303104676974656d5f3031056c6974656d2d7061796c6f61640601"
+  },
+  "reject": [
+    { "case": "wrong-version", "change": { "formatVersion": "crypto-envelope/v2" }, "error": "UnsupportedVersion" },
+    { "case": "nonce-23-bytes", "change": { "nonce": "hex:000102030405060708090a0b0c0d0e0f10111213141516" }, "error": "InvalidNonce" },
+    { "case": "unknown-key", "change": { "outerKey": 7 }, "error": "UnknownField" },
+    { "case": "aad-context-mismatch", "change": { "itemId": "item_02" }, "error": "InvalidContext" },
+    { "case": "indefinite-map", "encoding": "hex:bf0101ff", "error": "NonCanonicalCbor" },
+    { "case": "duplicate-key", "encoding": "hex:a2017263727970746f2d656e76656c6f70652f76310101", "error": "NonCanonicalCbor" }
+  ]
+}

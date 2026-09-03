@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pass.example/schemas/change-page-v1.json",
+  "type": "object", "additionalProperties": false, "required": ["changes", "nextCursor"],
+  "properties": { "changes": { "type": "array", "items": { "$ref": "item-record.schema.json" } }, "nextCursor": { "type": ["string", "null"], "minLength": 1 } }
+}

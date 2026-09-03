@@ -1,0 +1,12 @@
+{
+  "name": "zero-knowledge-password-manager",
+  "private": true,
+  "packageManager": "pnpm@9.15.5",
+  "engines": { "node": ">=20.0.0" },
+  "scripts": {
+    "build": "pnpm -r --if-present build && cargo build --workspace",
+    "test": "pnpm -r --if-present test && cargo test --workspace",
+    "lint": "pnpm -r --if-present lint && cargo fmt --all -- --check",
+    "check:boundaries": "node scripts/check-boundaries.mjs"
+  }
+}

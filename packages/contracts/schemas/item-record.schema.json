@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pass.example/schemas/item-record-v1.json",
+  "title": "Opaque item record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["itemId", "vaultId", "ciphertext", "envelopeVersion", "revision", "deleted", "createdAt", "updatedAt"],
+  "properties": {
+    "itemId": { "$ref": "#/$defs/id" }, "vaultId": { "$ref": "#/$defs/id" },
+    "ciphertext": { "type": "string", "pattern": "^b64:[A-Za-z0-9+/]+={0,2}$" },
+    "envelopeVersion": { "const": "crypto-envelope/v1" }, "revision": { "type": "integer", "minimum": 1 },
+    "deleted": { "type": "boolean" }, "createdAt": { "$ref": "#/$defs/dateTime" }, "updatedAt": { "$ref": "#/$defs/dateTime" }
+  },
+  "$defs": { "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" }, "dateTime": { "type": "string", "format": "date-time" } }
+}

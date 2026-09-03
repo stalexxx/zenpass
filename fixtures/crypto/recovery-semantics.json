@@ -1,0 +1,21 @@
+{
+  "id": "recovery-semantics-01",
+  "purpose": "recovery is independent and revokes devices",
+  "accountId": "account_01",
+  "oldWrapperVersion": 1,
+  "newWrapperVersion": 2,
+  "recoveryKey": "hex:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "recoveryWrappedAccountKey": {
+    "kind": "recovery-wrap",
+    "keyVersion": 1,
+    "nonce": "hex:000102030405060708090a0b0c0d0e0f1011121314151617",
+    "ciphertext": "hex:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677"
+  },
+  "postRecoveryAssertions": [
+    "AccountKey is recovered only on the client",
+    "new password wrapper is version 2",
+    "all prior sessions and devices are revoked",
+    "server cannot decrypt either wrapper",
+    "missing recovery key fails with InvalidRecoveryKit"
+  ]
+}

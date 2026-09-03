@@ -1,0 +1,20 @@
+{
+  "id": "kdf-parameters-01",
+  "purpose": "Argon2id parameter encoding",
+  "parameters": {
+    "algorithm": "argon2id",
+    "version": 19,
+    "memoryKiB": 65536,
+    "iterations": 3,
+    "parallelism": 1,
+    "salt": "hex:000102030405060708090a0b0c0d0e0f",
+    "outputLength": 32
+  },
+  "canonicalCborHex": "hex:a701686172676f6e3269640213031a00010000040305010650000102030405060708090a0b0c0d0e0f0720",
+  "negative": [
+    { "case": "salt-too-short", "salt": "hex:00010203", "error": "InvalidKdfParameters" },
+    { "case": "memory-below-minimum", "memoryKiB": 32768, "error": "InvalidKdfParameters" },
+    { "case": "iterations-below-minimum", "iterations": 2, "error": "InvalidKdfParameters" },
+    { "case": "output-length-not-32", "outputLength": 16, "error": "InvalidKdfParameters" }
+  ]
+}

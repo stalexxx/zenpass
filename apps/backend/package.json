@@ -1,0 +1,17 @@
+{
+  "name": "@zkpm/backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node --check src/*.mjs",
+    "dev": "node --watch src/server.mjs",
+    "start": "node src/server.mjs",
+    "migrate": "node src/migrate.mjs",
+    "test": "node --test",
+    "lint": "node --check src/*.mjs"
+  },
+  "dependencies": {
+    "fastify": "^5.2.1",
+    "pg": "^8.13.1"
+  }
+}
