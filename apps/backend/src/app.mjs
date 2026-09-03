@@ -5,6 +5,7 @@ import { loggerOptions } from './logger.mjs';
 import { createAuthContext } from './auth/init.mjs';
 import { registerAuthRoutes } from './auth/routes.mjs';
 import { registerDeviceRoutes } from './devices/routes.mjs';
+import { registerSyncRoutes } from './sync/routes.mjs';
 
 export function buildApp(config, { pool = createPool(config), authContext = createAuthContext(config, { logger: console }) } = {}) {
   const app = Fastify({ logger: loggerOptions(config.logLevel), genReqId: (req) => req.headers[config.requestIdHeader] || randomUUID() });
@@ -17,6 +18,7 @@ export function buildApp(config, { pool = createPool(config), authContext = crea
   });
   registerAuthRoutes(app, { pool, ready: authContext.ready, loginStateStore: authContext.loginStateStore, config });
   registerDeviceRoutes(app, { pool });
+  registerSyncRoutes(app, { pool });
   app.addHook('onClose', async () => { if (pool) await pool.end(); });
   return app;
 }

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { buildApp } from '../../src/app.mjs';
 import { createPool } from '../../src/db.mjs';
-import { registerSyncRoutes } from '../../src/sync/routes.mjs';
 import { issueSession } from '../../src/auth/sessions.mjs';
 import { encodeB64 } from '../../src/auth/codec.mjs';
 
@@ -22,12 +21,8 @@ const config = Object.freeze({
 
 async function withApp(fn) {
   const pool = createPool({ databaseUrl, databaseSsl: false });
-  // registerSyncRoutes is B05's own drop-in registration, following the
-  // same `registerXRoutes(app, { pool })` shape as auth/devices — it is
-  // not wired into apps/backend/src/app.mjs yet (that's the integrator's
-  // job), so tests wire it onto the app instance directly.
+  // registerSyncRoutes is wired into buildApp() by apps/backend/src/app.mjs.
   const app = buildApp(config, { pool });
-  registerSyncRoutes(app, { pool });
   try {
     await fn(app, pool);
   } finally {
