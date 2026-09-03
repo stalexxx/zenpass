@@ -8,10 +8,10 @@ This file is maintained by the integration agent.
 | A01 | MERGED | security agent | A00 | 20 threats mapped to mitigations and verification |
 | A02 | MERGED | contracts agent | A00 | OpenAPI, schemas, fixtures, and sync state machine added |
 | A03 | MERGED | coordinator | A00 | UX flows and accessibility states documented |
-| A04 | IN_PROGRESS | crypto-spec agent | A01,A02 | |
-| H01 | BLOCKED | human reviewer | A04 | |
+| A04 | REVIEW | crypto-spec agent | A01,A02 | Envelope v1, vectors, recovery and migration rules added |
+| H01 | BLOCKED | human reviewer | A04 | Human approval required before crypto implementation merge |
 | B01 | BLOCKED | rust agent | H01 | |
-| B02 | IN_PROGRESS | backend agent | A02 | |
+| B02 | REVIEW | backend agent | A02 | Fastify foundation, migrations, redacted logging, infra skeleton |
 | B03 | BLOCKED | bindings agent | B01 | |
 | B04 | BLOCKED | auth agent | B02,A02,H01 | |
 | B05 | BLOCKED | sync agent | B02,B04,A02 | |
