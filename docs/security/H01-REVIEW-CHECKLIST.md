@@ -12,6 +12,14 @@ library/license/maintenance evidence for G-06 was added in
 uncertainties separated; reviewer verdicts left blank; no selection recorded).
 AC-3 and §3.3 were updated to point at it.
 
+Amendment 2026-09-03 (G-10 documentation-prep task): an unsigned decision
+worksheet for the recovery-code display encoding was added at
+`docs/security/H01-RECOVERY-ENCODING-WORKSHEET.md` (binding requirements
+traced to the contract, open rulings, neutral candidate/tradeoff inventory,
+test/provenance requirements, and blank decision/signature fields). No
+encoding is chosen or recommended there. AC-4, §3.4, and the G-10 gap row
+were updated to point at it; the gap remains open.
+
 Status legend:
 
 - ✅ Evidence present, ready for human verification
@@ -26,7 +34,7 @@ Status legend:
 | AC-1 | Threat model approved | Assets, boundaries, T01–T20 mitigations, metadata exposure are sound | `docs/security/THREAT-MODEL.md` (A01 MERGED) | ⏳ ⚠️ |
 | AC-2 | Crypto specification approved and `crypto-envelope/v1` frozen | Byte-level contract: envelope, AAD, CBOR rules, Argon2id, OPAQUE, errors, versioning | `docs/contracts/crypto-envelope-v1.md` (status: proposed) + `fixtures/crypto/` | ⏳ ⚠️ vectors incomplete (G-02..G-04) and KDF fixture defect G-11 |
 | AC-3 | Crypto libraries/dependencies approved | Named library + version + license + maintenance for each primitive | §3.3; candidate evidence table `docs/security/H01-LIBRARY-EVIDENCE.md` (verified facts, alternatives, uncertainty register; verdicts blank) | ⏳ ⚠️ candidate evidence prepared; selection and approval still pending (G-06) |
-| AC-4 | Recovery semantics approved | Independent wrap, reset revocation, no support bypass, irreversibility | `docs/security/RECOVERY.md`, contract "Recovery reset and rotation", `fixtures/crypto/recovery-semantics.json` | ⏳ ⚠️ G-09, G-10 |
+| AC-4 | Recovery semantics approved | Independent wrap, reset revocation, no support bypass, irreversibility | `docs/security/RECOVERY.md`, contract "Recovery reset and rotation", `fixtures/crypto/recovery-semantics.json`; encoding worksheet `docs/security/H01-RECOVERY-ENCODING-WORKSHEET.md` (unsigned, no choice recorded) | ⏳ ⚠️ G-09, G-10 |
 | AC-5 | Independent vector verification | Fixtures re-derived/decrypted by a second, non-Rust implementation | §3.2 of this file; prep-agent run §3.2.1 (does not substitute) | ❌ G-01..G-05, G-11 |
 | AC-6 | Signed review record/ADR; Critical/High findings return A04 to READY | Findings logged with severity and disposition; signature recorded | `docs/decisions/ADR-0003-crypto-envelope-v1-approval.md` (unsigned draft) | ⏳ awaiting human |
 
@@ -182,7 +190,9 @@ contract "Recovery reset and rotation", and the fixture's
    explicit re-enrollment") must be confirmed equivalent by the reviewer.
 
 Open reviewer questions (not decided here): recovery-code display encoding
-unspecified (G-10); fixture placeholder ciphertext length 56 B does not match
+unspecified (G-10 — unsigned decision worksheet prepared:
+`H01-RECOVERY-ENCODING-WORKSHEET.md`; no encoding chosen or recommended);
+fixture placeholder ciphertext length 56 B does not match
 32 B key + 16 B tag = 48 B expected for `recovery-wrap` (G-09).
 
 ### 3.5 Threat-model consistency (AC-1)
@@ -217,7 +227,7 @@ freeze decision and must not be silently assumed approved.
 | G-07 | No Argon2id target-device calibration evidence (500–1000 ms within bounds). An unsigned, non-binding evidence protocol (device matrix, measurement method, contract constraints, results/provenance templates) was added by the G-07 documentation-prep follow-up: `docs/security/H01-ARGON2ID-CALIBRATION-PROTOCOL.md`. No measurements exist and the gap remains open | AC-2 (T08) | B01 (post-approval) or A04 |
 | G-08 | `ADR-0003`/`ADR-0004` referenced by `docs/security/DECISIONS.md` did not exist as files | Record integrity | ADR-0003 draft added by this task (unsigned); unsigned ADR-0004 draft added by the G-08 record-integrity follow-up (issue #1) — referential integrity restored, SD-0005 policy decisions remain pending in the draft |
 | G-09 | `recovery-semantics-01` placeholder ciphertext is 56 B; expected 48 B (32 B key + 16 B tag) for `recovery-wrap` | AC-4, AC-5 | A04 rework |
-| G-10 | Recovery-code display encoding unspecified ("any printable code") | AC-4 | H01 reviewer decision (or A04 rework) |
+| G-10 | Recovery-code display encoding unspecified ("any printable code") — **worksheet prepared 2026-09-03**: unsigned decision worksheet added (`docs/security/H01-RECOVERY-ENCODING-WORKSHEET.md`; requirements, open rulings, neutral tradeoffs, test/provenance requirements, blank decision/signature fields); no encoding chosen; gap remains open | AC-4 | H01 reviewer decision (or A04 rework) |
 | G-11 | `kdf-parameters-01.canonicalCborHex` is non-canonical: final `outputLength` 32 is encoded as single byte `0x20` (major type 1, decodes −1) instead of the RFC 8949 minimal form `0x18 0x20`; contradicts the contract's canonical-CBOR mandate. Discovered by prep-agent re-derivation (§3.2.1) | AC-2, AC-5 | A04 rework (fix fixture; verifier per G-01 must regression-test canonical integers) |
 
 No severity is pre-assigned; severity and disposition (fix vs formally accept)
