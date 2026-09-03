@@ -16,8 +16,9 @@ Cryptographic implementation may not merge until this ADR carries a signature
   `docs/security/RECOVERY.md` define the security objective and recovery
   guarantees; SD-0004 approved the irreversibility principle.
 - Known evidence gaps G-01..G-11 are registered in
-  `docs/security/H01-REVIEW-CHECKLIST.md` §4. Gaps G-01..G-06 and G-11 currently
-  block full vector and library verification.
+  `docs/security/H01-REVIEW-CHECKLIST.md` §4. Gaps G-01..G-06 currently block
+  full vector and library verification; the G-11 fixture bytes were corrected
+  but still require independent confirmation under G-05.
 - The dependency-neutral implementation routing and independent-validation
   procedure for G-01..G-05 are documented in
   `docs/security/H01-CRYPTO-FIXTURES-VERIFIER-PLAN.md`. It is not verification
@@ -87,6 +88,7 @@ verification with a new ADR row; suite changes require H01 re-approval.
 | ID | Severity (Critical/High/Medium/Low) | Description | Affected (contract/threat/task) | Disposition (fix / accepted with rationale) | Status |
 |---|---|---|---|---|---|
 | F-1 | — (to be assigned by reviewer) | `fixtures/crypto/kdf-parameters.json` `canonicalCborHex` is non-canonical CBOR: the final `outputLength` value 32 is encoded as single byte `0x20` (major type 1 → −1) rather than the RFC 8949 minimal encoding `0x18 0x20`, contradicting the contract's canonical-CBOR mandate (definite, minimal, ascending-key encoding). Discovered by prep-agent re-derivation, checklist §3.2.1. | `crypto-envelope/v1` fixtures; AC-2/AC-5; A04 | fix expected via A04 rework (G-11); severity and final disposition rest with the reviewer | open |
+| F-1 follow-up | — (to be assigned by reviewer) | A04 corrected the positive bytes to `0x18 0x20`; the historical `0x20` input is retained as a semantic `InvalidKdfParameters` regression because it canonically encodes −1. A separate non-minimal-integer regression expects `NonCanonicalCbor`. | `crypto-envelope/v1` fixtures; AC-2/AC-5; A04 | reviewer independently verifies the repair and records severity/disposition for F-1 | remediation awaiting review |
 
 Rules: any Critical/High finding returns A04 to `READY` via the integrator
 before any crypto implementation merges; accepted findings require an explicit
