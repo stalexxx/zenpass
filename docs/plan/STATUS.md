@@ -8,7 +8,7 @@ This file is maintained by the integration agent.
 | A01 | MERGED | security agent | A00 | 20 threats mapped to mitigations and verification |
 | A02 | MERGED | contracts agent | A00 | OpenAPI, schemas, fixtures, and sync state machine added |
 | A03 | MERGED | coordinator | A00 | UX flows and accessibility states documented |
-| A04 | READY | crypto-spec agent | A01,A02 | Rework scope includes fixture-only Bun verifier and G-01..G-04/G-09/G-11 remediation; H01 evidence/approval remains pending |
+| A04 | READY | crypto-spec agent | A01,A02 | Source-backed AEAD/OPAQUE vectors and G-11 fixture repair merged; G-03 wrap vectors, G-09 real recovery-wrap vector, and independent-adapter CI path remain open |
 | H01 | BLOCKED | human reviewer | A04 | Approval transcript identity/authority uncorroborated; checklist attestation and finding dispositions missing |
 | B01 | BLOCKED | rust agent | H01 | |
 | B02 | MERGED | backend agent | A02 | Health, redaction, and repeatable PostgreSQL migration tests pass; Compose uses host port 5434 |
