@@ -78,6 +78,7 @@ export class CryptoWorkerHost {
 
 function locked(id: string): CryptoResponse { return { id, ok: false, error: "Locked" }; }
 function errorCode(error: unknown): CryptoResponse["error"] {
+  if (typeof error === "string" && errorCodes.has(error)) return error as CryptoResponse["error"];
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" && errorCodes.has(error.code)
     ? error.code as CryptoResponse["error"] : "Internal";
 }

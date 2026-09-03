@@ -64,3 +64,11 @@ test("non-finite sessions and over-limit buffers are malformed", () => {
   expect(host.handle({ id: "x", type: "open-item-payload", session: Infinity, accountId: "a", vaultId: "v", itemId: "i", keyVersion: 1n, envelope: new Uint8Array() })).toEqual({ id: "", ok: false, error: "InvalidEncoding" });
   expect(host.handle({ id: "x", type: "inspect-envelope", envelope: new Uint8Array(1024 * 1024 + 1041) })).toEqual({ id: "", ok: false, error: "InvalidEncoding" });
 });
+
+test("generated WASM string error codes map to the protocol error", () => {
+  const wasm: CryptoBackend = {
+    unlockItemSession: () => { throw "AuthenticationFailed"; }, sealItemPayload: () => new Uint8Array(), openItemPayload: () => new Uint8Array(),
+    inspectEnvelope: () => ({ accountId: "a", vaultId: null, itemId: null, recordKind: "account-wrap", keyVersion: 1n }), closeSession: () => {},
+  };
+  expect(new CryptoWorkerHost(wasm).handle(unlock("x"))).toEqual({ id: "x", ok: false, error: "AuthenticationFailed" });
+});

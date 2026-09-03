@@ -16,6 +16,7 @@ use crypto_core::keys::{
 };
 use js_sys::{Object, Reflect};
 use wasm_bindgen::prelude::*;
+use zeroize::Zeroizing;
 
 fn error(error: crypto_core::Error) -> JsValue {
     JsValue::from_str(match error {
@@ -97,6 +98,15 @@ impl WasmCrypto {
         wrapped_vault_key: Vec<u8>,
         wrapped_item_key: Vec<u8>,
     ) -> Result<u32, JsValue> {
+        // wasm-bindgen transfers JS byte arrays into these owned Vec values.
+        // Zeroizing overwrites their WASM linear-memory allocations before
+        // deallocation on both success and every early-error return. The
+        // caller-owned JS Uint8Array cannot be wiped across that boundary.
+        let password = Zeroizing::new(password);
+        let kdf_parameters_cbor = Zeroizing::new(kdf_parameters_cbor);
+        let wrapped_account_key = Zeroizing::new(wrapped_account_key);
+        let wrapped_vault_key = Zeroizing::new(wrapped_vault_key);
+        let wrapped_item_key = Zeroizing::new(wrapped_item_key);
         let params =
             KdfParams::decode_canonical_cbor(&kdf_parameters_cbor, reported_physical_memory_kib)
                 .map_err(error)?;
