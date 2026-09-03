@@ -226,8 +226,21 @@ const CALIBRATION_SAMPLES: usize = 5;
 /// Warm-up derives discarded per candidate point.
 const CALIBRATION_WARMUP: usize = 1;
 
-/// First-setup calibration per the contract: find parameters whose median
-/// derive time falls in `target_min_ms..=target_max_ms`.
+/// Contract calibration window (milliseconds): first-setup parameters must
+/// target 500–1000 ms derive time. Public so bindings and callers can refer
+/// to the exact mandated values; they cannot override them.
+pub const CALIBRATION_TARGET_MIN_MS: u64 = 500;
+/// Upper bound of the contract calibration window (milliseconds).
+pub const CALIBRATION_TARGET_MAX_MS: u64 = 1000;
+
+/// Generic-window calibration ladder.
+///
+/// Crate-private on purpose: it accepts an arbitrary target window, which
+/// only in-crate tests may exercise. Every public production path
+/// ([`calibrate_for_setup`]) fixes the window to the contract values
+/// [`CALIBRATION_TARGET_MIN_MS`]..[`CALIBRATION_TARGET_MAX_MS`] (500–1000
+/// ms), so neither bindings nor callers can calibrate outside the contract
+/// window.
 ///
 /// Ladder (calibration protocol §4.3): memory descends over powers of two
 /// from the largest allowed by `max_memory_kib` (the caller computes the 25%
@@ -243,9 +256,8 @@ const CALIBRATION_WARMUP: usize = 1;
 ///
 /// `password` and `salt` are calibration inputs; they must be test-only or
 /// at least not weakly-held production secrets, since derivation timing is
-/// observable by the caller. Production callers must use
-/// [`calibrate_for_setup`], which fixes the contract window of 500–1000 ms.
-pub fn calibrate(
+/// observable by the caller.
+pub(crate) fn calibrate(
     target_min_ms: u64,
     target_max_ms: u64,
     max_memory_kib: u64,
@@ -304,9 +316,15 @@ fn largest_power_of_two_at_most(cap: u64) -> u32 {
     1u32 << exponent
 }
 
-/// Contract production calibration for first setup: the target window is
-/// fixed at 500–1000 ms and the memory ceiling is derived from the reported
-/// physical memory as at most 25% of it.
+/// Contract production calibration for first setup — the only public
+/// calibration entry point.
+///
+/// The target window is fixed at exactly
+/// [`CALIBRATION_TARGET_MIN_MS`]..[`CALIBRATION_TARGET_MAX_MS`]
+/// (500–1000 ms, non-overridable; the generic window-taking ladder is
+/// crate-private), and the memory ceiling is derived from the reported
+/// physical memory as at most 25% of it. Bindings (B03) must expose this
+/// function and no other calibration path.
 ///
 /// Returns in-window in-bounds parameters, or [`Error::KdfResourceLimit`]
 /// when no compliant candidate exists for the reported device (for example
@@ -318,7 +336,14 @@ pub fn calibrate_for_setup(
     salt: &[u8; SALT_LEN],
 ) -> Result<KdfParams, Error> {
     let max_memory_kib = reported_physical_memory_kib / 4;
-    calibrate(500, 1000, max_memory_kib, parallelism, password, salt)
+    calibrate(
+        CALIBRATION_TARGET_MIN_MS,
+        CALIBRATION_TARGET_MAX_MS,
+        max_memory_kib,
+        parallelism,
+        password,
+        salt,
+    )
 }
 
 fn median_derive_ms(password: &[u8], params: &KdfParams) -> u64 {
@@ -503,6 +528,17 @@ mod tests {
             calibrate(500, 1_000, 65_535, 1, b"calibration-input", &salt).unwrap_err(),
             Error::KdfResourceLimit
         );
+    }
+
+    #[test]
+    fn contract_calibration_window_is_exactly_500_to_1000_ms() {
+        assert_eq!(CALIBRATION_TARGET_MIN_MS, 500);
+        assert_eq!(CALIBRATION_TARGET_MAX_MS, 1000);
+        // The generic window-taking ladder is crate-private: the only
+        // public calibration entry point is calibrate_for_setup, whose
+        // signature accepts no window at all, so out-of-window calibration
+        // is unexpressible through the public API (and therefore through
+        // the B03 bindings).
     }
 
     #[test]

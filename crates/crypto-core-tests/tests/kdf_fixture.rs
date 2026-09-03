@@ -161,6 +161,36 @@ fn derive_uses_the_fixture_parameters_deterministically() {
     assert_ne!(a.as_bytes(), c.as_bytes());
 }
 
+/// Regression (second review, High): the public calibration surface must
+/// not accept out-of-contract-window values. `calibrate_for_setup` is the
+/// only public calibration entry point; its signature carries no window
+/// parameters at all, and the mandated window is published as constants
+/// this external crate can read but never override.
+#[test]
+fn public_calibration_cannot_escape_the_contract_window() {
+    assert_eq!(kdf::CALIBRATION_TARGET_MIN_MS, 500);
+    assert_eq!(kdf::CALIBRATION_TARGET_MAX_MS, 1000);
+    // The sole public entry point: reported memory, parallelism, password,
+    // salt. There is no window argument to abuse; outcomes are exactly
+    // in-bounds parameters or fail-closed KdfResourceLimit.
+    let salt = [0x5au8; 16];
+    match kdf::calibrate_for_setup(65_536 * 4, 1, b"calibration-input", &salt) {
+        Ok(params) => {
+            assert!(params.memory_kib() >= 65_536);
+            assert!(params.iterations() >= 3);
+            assert_eq!(params.parallelism(), 1);
+        }
+        Err(Error::KdfResourceLimit) => {}
+        Err(other) => panic!("unexpected error {other:?}"),
+    }
+    // A reported memory whose quarter is below the contract minimum has no
+    // compliant candidate.
+    assert_eq!(
+        kdf::calibrate_for_setup(65_536, 1, b"calibration-input", &salt).unwrap_err(),
+        Error::KdfResourceLimit
+    );
+}
+
 fn expected_error(name: &str) -> Error {
     match name {
         "InvalidKdfParameters" => Error::InvalidKdfParameters,
