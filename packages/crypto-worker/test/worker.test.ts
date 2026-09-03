@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { CryptoWorkerHost, type CryptoBackend } from "../src/index.ts";
 import { installCryptoWorker, type WorkerScope } from "../src/entrypoint.ts";
+import { createWasmBackend } from "../src/wasm-adapter.ts";
+import init, { WasmCrypto } from "../../crypto-wasm/pkg/crypto_wasm.js";
 
 function makeHost() {
   const closed: number[] = [];
@@ -79,4 +81,25 @@ test("worker zeroes its unlock password buffer even when backend fails", () => {
   const request = unlock("x"); request.password = password;
   new CryptoWorkerHost(wasm).handle(request);
   expect(password).toEqual(new Uint8Array([0, 0]));
+});
+
+test("real generated-WASM adapter handles Worker unlock, payload, error, and lock", async () => {
+  await init();
+  const setupPassword = new Uint8Array([5]); const unlockPassword = new Uint8Array([5]);
+  const setupCrypto = new WasmCrypto(); let setupSession: number | undefined;
+  try {
+    const setup = setupCrypto.create_item_session_for_setup(setupPassword, 262144n) as Record<string, unknown>;
+    setupSession = setup.session as number;
+    const host = new CryptoWorkerHost(await createWasmBackend());
+    const unlocked = host.handle({ id: "u", type: "unlock-item-session", password: unlockPassword, kdfParametersCbor: setup.kdfParametersCbor as Uint8Array, reportedPhysicalMemoryKiB: 262144n, accountId: setup.accountId as string, vaultId: setup.vaultId as string, itemId: setup.itemId as string, accountKeyVersion: 1n, vaultKeyVersion: 1n, itemKeyVersion: 1n, wrappedAccountKey: setup.wrappedAccountKey as Uint8Array, wrappedVaultKey: setup.wrappedVaultKey as Uint8Array, wrappedItemKey: setup.wrappedItemKey as Uint8Array });
+    expect(unlocked.ok && unlocked.type === "session").toBe(true);
+    const session = (unlocked as { session: number }).session;
+    const sealed = host.handle({ id: "s", type: "seal-item-payload", session, accountId: setup.accountId as string, vaultId: setup.vaultId as string, itemId: setup.itemId as string, keyVersion: 1n, plaintext: new Uint8Array([6]) });
+    expect(sealed.ok && sealed.type === "bytes").toBe(true);
+    const opened = host.handle({ id: "o", type: "open-item-payload", session, accountId: setup.accountId as string, vaultId: setup.vaultId as string, itemId: setup.itemId as string, keyVersion: 1n, envelope: (sealed as { bytes: Uint8Array }).bytes });
+    expect(opened).toMatchObject({ ok: true, type: "bytes", bytes: new Uint8Array([6]) });
+    expect(host.handle({ id: "bad", type: "open-item-payload", session, accountId: "wrong", vaultId: setup.vaultId as string, itemId: setup.itemId as string, keyVersion: 1n, envelope: (sealed as { bytes: Uint8Array }).bytes })).toMatchObject({ ok: false, error: "InvalidContext" });
+    expect(host.handle({ id: "l", type: "lock" })).toMatchObject({ ok: true, type: "locked" });
+    expect(host.handle({ id: "after", type: "open-item-payload", session, accountId: setup.accountId as string, vaultId: setup.vaultId as string, itemId: setup.itemId as string, keyVersion: 1n, envelope: (sealed as { bytes: Uint8Array }).bytes })).toMatchObject({ ok: false, error: "Locked" });
+  } finally { setupPassword.fill(0); unlockPassword.fill(0); if (setupSession !== undefined) setupCrypto.close_session(setupSession); setupCrypto.free(); }
 });
