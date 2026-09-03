@@ -1,0 +1,56 @@
+{
+  "id": "aead-xchacha20poly1305-01",
+  "purpose": "XChaCha20-Poly1305 (IETF) deterministic encryption round-trip and tamper rejection",
+  "algorithm": "AEAD_XCHACHA20_POLY1305",
+  "key": "hex:808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+  "nonce": "hex:404142434445464748494a4b4c4d4e4f5051525354555657",
+  "plaintext": "hex:4c616469657320616e642047656e746c656d656e206f662074686520636c617373206f66202739393a204966204920636f756c64206f6666657220796f75206f6e6c79206f6e652074697020666f7220746865206675747572652c2073756e73637265656e20776f756c642062652069742e",
+  "aad": "hex:50515253c0c1c2c3c4c5c6c7",
+  "ciphertextTag": "hex:bd6d179d3e83d43b9576579493c0e939572a1700252bfaccbed2902c21396cbb731c7f1b0b4aa6440bf3a82f4eda7e39ae64c6708c54c216cb96b72e1213b4522f8c9ba40db5d945b11b69b982c1bb9e3f3fac2bc369488f76b2383565d3fff921f9664c97637da9768812f615c68b13b52ec0875924c1c7987947deafd8780acf49",
+  "note": "aad in this vector is the source document's test AAD, not a crypto-envelope/v1 canonical AAD; contract-context binding is exercised by wrap vectors (gap G-03)",
+  "assertions": [
+    "encrypting plaintext with key, nonce, and aad reproduces ciphertextTag exactly (AEAD output is ciphertext || tag, final 16 bytes are the tag)",
+    "decrypting ciphertextTag with key, nonce, and aad returns plaintext",
+    "authentication is verified before any plaintext is returned"
+  ],
+  "tamperRule": "xor-0x01-at-offset",
+  "negative": [
+    {
+      "case": "ciphertext-byte-change",
+      "field": "ciphertextTag",
+      "offset": 5,
+      "error": "AuthenticationFailed"
+    },
+    {
+      "case": "final-tag-byte-change",
+      "field": "ciphertextTag",
+      "offset": 129,
+      "error": "AuthenticationFailed"
+    },
+    {
+      "case": "nonce-byte-change",
+      "field": "nonce",
+      "offset": 7,
+      "error": "AuthenticationFailed"
+    },
+    {
+      "case": "aad-byte-change",
+      "field": "aad",
+      "offset": 3,
+      "error": "InvalidContext"
+    },
+    {
+      "case": "nonce-23-bytes",
+      "field": "nonce",
+      "truncateTo": 23,
+      "error": "InvalidNonce"
+    }
+  ],
+  "provenance": {
+    "fixtureFormatRevision": "crypto-fixture/1",
+    "classification": "test-only",
+    "source": "draft-irtf-cfrg-xchacha-03 (XChaCha: eXtended-nonce ChaCha stream cipher), Appendix A.1, published at ietf.org; AEAD_XCHACHA20_POLY1305 is the IETF construction named by the contract for AEAD and wrapping",
+    "generationProcedure": "positive values transcribed programmatically from the Appendix A.1 hex dumps (key, IV, AAD, plaintext, ciphertext, tag); negative inputs derive from the positive vector by the declared single-byte tamper rule (xor-0x01-at-offset) or nonce truncation to 23 bytes; reject expectations are definitional AEAD security properties, not invented outputs",
+    "normalizedRecordSha256": "sha256:f898f198c1068b653fe425ea913aeb02016bd80e8d401adfbb83b74b724191f8"
+  }
+}
