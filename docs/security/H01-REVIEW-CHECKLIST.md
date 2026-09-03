@@ -18,10 +18,10 @@ Status legend:
 | # | H01 requirement (from `docs/tasks/H01.md`) | Reviewer verifies | Evidence location | Status |
 |---|---|---|---|---|
 | AC-1 | Threat model approved | Assets, boundaries, T01–T20 mitigations, metadata exposure are sound | `docs/security/THREAT-MODEL.md` (A01 MERGED) | ⏳ ⚠️ |
-| AC-2 | Crypto specification approved and `crypto-envelope/v1` frozen | Byte-level contract: envelope, AAD, CBOR rules, Argon2id, OPAQUE, errors, versioning | `docs/contracts/crypto-envelope-v1.md` (status: proposed) + `fixtures/crypto/` | ⏳ ⚠️ vectors incomplete (G-02..G-04) |
+| AC-2 | Crypto specification approved and `crypto-envelope/v1` frozen | Byte-level contract: envelope, AAD, CBOR rules, Argon2id, OPAQUE, errors, versioning | `docs/contracts/crypto-envelope-v1.md` (status: proposed) + `fixtures/crypto/` | ⏳ ⚠️ vectors incomplete (G-02..G-04) and KDF fixture defect G-11 |
 | AC-3 | Crypto libraries/dependencies approved | Named library + version + license + maintenance for each primitive | §3.3 of this file; no candidate list exists | ❌ G-06 |
 | AC-4 | Recovery semantics approved | Independent wrap, reset revocation, no support bypass, irreversibility | `docs/security/RECOVERY.md`, contract "Recovery reset and rotation", `fixtures/crypto/recovery-semantics.json` | ⏳ ⚠️ G-09, G-10 |
-| AC-5 | Independent vector verification | Fixtures re-derived/decrypted by a second, non-Rust implementation | §3.2 of this file; no verifier exists | ❌ G-01..G-05 |
+| AC-5 | Independent vector verification | Fixtures re-derived/decrypted by a second, non-Rust implementation | §3.2 of this file; prep-agent run §3.2.1 (does not substitute) | ❌ G-01..G-05, G-11 |
 | AC-6 | Signed review record/ADR; Critical/High findings return A04 to READY | Findings logged with severity and disposition; signature recorded | `docs/decisions/ADR-0003-crypto-envelope-v1-approval.md` (unsigned draft) | ⏳ awaiting human |
 
 Pre-gate note: `docs/plan/STATUS.md` records A04 as `READY` after a **failed
@@ -35,14 +35,39 @@ return A04 for rework first or approve with explicitly recorded findings.
 | Artifact | Content | Notes |
 |---|---|---|
 | `docs/contracts/crypto-envelope-v1.md` | Normative byte-level contract | Status "proposed; implementation blocked until H01" |
-| `fixtures/crypto/aad-item-payload.json` | Canonical AAD CBOR map, positive case | Hand-decoded by prep agent: map keys 1–6, ascending, definite lengths — self-consistent |
-| `fixtures/crypto/envelope-malformed.json` | Envelope shape + 6 reject cases → typed errors | Ciphertext/nonce are placeholders, not real AEAD output |
-| `fixtures/crypto/kdf-parameters.json` | Argon2id parameter map, positive + 4 negative | Hand-decoded: map keys 1–7, values match contract (v19, 65536 KiB, 3, 1, 16-byte salt, 32) |
-| `fixtures/crypto/recovery-semantics.json` | Recovery reset assertions | Placeholder ciphertext; see G-09 |
+| `fixtures/crypto/aad-item-payload.json` | Canonical AAD CBOR map, positive case | Re-encoded and byte-matched by prep agent (§3.2.1): canonical bytes valid |
+| `fixtures/crypto/envelope-malformed.json` | Envelope shape + 6 reject cases → typed errors | Ciphertext/nonce are placeholders, not real AEAD output; structural reject cases confirmed (§3.2.1) |
+| `fixtures/crypto/kdf-parameters.json` | Argon2id parameter map, positive + 4 negative | Re-derivation **FAILS**: `canonicalCborHex` ends `07 20` — outputLength 32 encoded as single byte `0x20` (major type 1, decodes −1) instead of minimal `0x18 0x20` → G-11; parameters themselves match contract bounds |
+| `fixtures/crypto/recovery-semantics.json` | Recovery reset assertions | Placeholder ciphertext (56 B, G-09); structural checks pass (§3.2.1) |
 | `crates/crypto-core` | Empty Rust boundary, `unsafe_code = "forbid"`, **no dependencies** | Intentionally unimplemented pending H01 |
 
 Sanity decoding by the prep agent is an aid, **not** independent verification;
 the reviewer must repeat it with an independent tool (§3.2).
+
+#### 3.2.1 Prep-agent execution results (recorded at HEAD `cc7870b`)
+
+Executed step 1 plus structural checks with a hand-rolled canonical CBOR
+encoder/decoder (Python 3.14.3, independent of all repository code; no
+`cbor2`/`PyNaCl` available in this environment — noted for the reviewer's
+independent-tool choice):
+
+- `aad-item-payload-01`: re-encode byte-match **PASS**; round-trip decode
+  equals the source map; keys exactly {1..6} ascending.
+- `kdf-parameters-01`: re-encode byte-match **FAIL** — new gap **G-11**
+  (fixture `canonicalCborHex` is non-canonical; see §4). All four negative
+  cases confirmed to violate documented bounds.
+- `envelope-malformed-01`: nonce 24 B; `aad` equals AAD fixture bytes; all six
+  reject cases structurally confirmed (23-B nonce, `0xbf…0xff` indefinite map,
+  map(2) with duplicate key 1, v2 string, outer key 7, itemId change).
+- `recovery-semantics-01`: key 32 B, nonce 24 B, 56-B placeholder ciphertext
+  (G-09), 5 post-recovery assertions present.
+- Result: 20/21 checks passed (the single failure is the G-11 defect);
+  sha256 of result lines
+  `211f279cbe976fbbb1854030f5a076011f5bc2e345756353e4863e36687c098c`.
+
+This run does **not** close G-05: the human reviewer must repeat verification
+with an independently chosen tool and record it in ADR-0003. Steps 2–4 remain
+blocked by G-02..G-04.
 
 ## 3. Verification procedures
 
@@ -173,6 +198,7 @@ freeze decision and must not be silently assumed approved.
 | G-08 | `ADR-0003`/`ADR-0004` referenced by `docs/security/DECISIONS.md` did not exist as files | Record integrity | ADR-0003 draft added by this task (unsigned); ADR-0004 remains open, owned by SD-0005 tasks |
 | G-09 | `recovery-semantics-01` placeholder ciphertext is 56 B; expected 48 B (32 B key + 16 B tag) for `recovery-wrap` | AC-4, AC-5 | A04 rework |
 | G-10 | Recovery-code display encoding unspecified ("any printable code") | AC-4 | H01 reviewer decision (or A04 rework) |
+| G-11 | `kdf-parameters-01.canonicalCborHex` is non-canonical: final `outputLength` 32 is encoded as single byte `0x20` (major type 1, decodes −1) instead of the RFC 8949 minimal form `0x18 0x20`; contradicts the contract's canonical-CBOR mandate. Discovered by prep-agent re-derivation (§3.2.1) | AC-2, AC-5 | A04 rework (fix fixture; verifier per G-01 must regression-test canonical integers) |
 
 No severity is pre-assigned; severity and disposition (fix vs formally accept)
 belong to the human reviewer in ADR-0003.

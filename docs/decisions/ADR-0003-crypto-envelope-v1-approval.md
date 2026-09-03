@@ -15,9 +15,9 @@ Cryptographic implementation may not merge until this ADR carries a signature
 - `docs/security/THREAT-MODEL.md` (A01, merged) and
   `docs/security/RECOVERY.md` define the security objective and recovery
   guarantees; SD-0004 approved the irreversibility principle.
-- Known evidence gaps G-01..G-10 are registered in
-  `docs/security/H01-REVIEW-CHECKLIST.md` §4. Gaps G-01..G-06 currently block
-  full vector and library verification.
+- Known evidence gaps G-01..G-11 are registered in
+  `docs/security/H01-REVIEW-CHECKLIST.md` §4. Gaps G-01..G-06 and G-11 currently
+  block full vector and library verification.
 
 ## Decision to be approved (what a signature covers)
 
@@ -52,16 +52,16 @@ verification with a new ADR row; suite changes require H01 re-approval.
 
 | Step (checklist §3.2) | Tool + version | Command(s) | Result/digest | Date |
 |---|---|---|---|---|
-| CBOR canonicalization re-derivation | — | — | — | — |
-| AEAD round-trip + tamper rejection | — | — | — | — |
-| Key-wrapping vectors | — | — | — | — |
-| OPAQUE RFC 9807 vectors | — | — | — | — |
+| CBOR canonicalization re-derivation | Hand-rolled canonical CBOR encoder/decoder, Python 3.14.3 — **executed by prep agent; reviewer must repeat with an independently chosen tool** | inline script; transcript summarized in checklist §3.2.1 | 20/21 PASS. `aad-item-payload-01` byte-match PASS; `kdf-parameters-01` byte-match FAIL → candidate finding F-1 (G-11); digest sha256:211f279c…c098 | recorded at HEAD `cc7870b` |
+| AEAD round-trip + tamper rejection | — blocked (G-02) | — | — | — |
+| Key-wrapping vectors | — blocked (G-03) | — | — | — |
+| OPAQUE RFC 9807 vectors | — blocked (G-04) | — | — | — |
 
 ## Findings record
 
 | ID | Severity (Critical/High/Medium/Low) | Description | Affected (contract/threat/task) | Disposition (fix / accepted with rationale) | Status |
 |---|---|---|---|---|---|
-| — | — | — | — | — | — |
+| F-1 | — (to be assigned by reviewer) | `fixtures/crypto/kdf-parameters.json` `canonicalCborHex` is non-canonical CBOR: the final `outputLength` value 32 is encoded as single byte `0x20` (major type 1 → −1) rather than the RFC 8949 minimal encoding `0x18 0x20`, contradicting the contract's canonical-CBOR mandate (definite, minimal, ascending-key encoding). Discovered by prep-agent re-derivation, checklist §3.2.1. | `crypto-envelope/v1` fixtures; AC-2/AC-5; A04 | fix expected via A04 rework (G-11); severity and final disposition rest with the reviewer | open |
 
 Rules: any Critical/High finding returns A04 to `READY` via the integrator
 before any crypto implementation merges; accepted findings require an explicit
