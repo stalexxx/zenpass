@@ -3,12 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node --check src/*.mjs",
-    "dev": "node --watch src/server.mjs",
-    "start": "node src/server.mjs",
-    "migrate": "node src/migrate.mjs",
-    "test": "node --test",
-    "lint": "node --check src/*.mjs"
+    "build": "bun --check src/*.mjs",
+    "dev": "bun --watch src/server.mjs",
+    "start": "bun src/server.mjs",
+    "migrate": "bun src/migrate.mjs",
+    "test": "bun test",
+    "lint": "bun --check src/*.mjs"
   },
   "dependencies": {
     "fastify": "^5.2.1",

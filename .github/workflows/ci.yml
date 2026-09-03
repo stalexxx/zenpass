@@ -12,15 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: pnpm
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.5
-      - run: corepack pnpm install --frozen-lockfile
-      - run: pnpm check:boundaries
-      - run: pnpm test
-      - run: pnpm build
+          bun-version: 1.2.15
+      - run: bun install --frozen-lockfile
+      - run: bun run check:boundaries
+      - run: bun run test
+      - run: bun run build
       - run: cargo fmt --all -- --check

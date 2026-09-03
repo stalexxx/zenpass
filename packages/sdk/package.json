@@ -2,5 +2,5 @@
   "name": "@zkpm/sdk",
   "private": true,
   "type": "module",
-  "scripts": { "build": "node -e \"console.log('sdk scaffold build')\"", "test": "node --test", "lint": "node -e \"console.log('sdk scaffold lint')\"" }
+  "scripts": { "build": "bun -e \"console.log('sdk scaffold build')\"", "test": "bun test", "lint": "bun -e \"console.log('sdk scaffold lint')\"" }
 }

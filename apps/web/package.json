@@ -2,5 +2,5 @@
   "name": "@zkpm/web",
   "private": true,
   "type": "module",
-  "scripts": { "build": "node -e \"console.log('web scaffold build')\"", "test": "node --test", "lint": "node -e \"console.log('web scaffold lint')\"" }
+  "scripts": { "build": "bun -e \"console.log('web scaffold build')\"", "test": "bun test", "lint": "bun -e \"console.log('web scaffold lint')\"" }
 }

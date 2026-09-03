@@ -4,5 +4,5 @@
   "version": "0.1.0",
   "type": "module",
   "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "node --test" }
+  "scripts": { "test": "bun test" }
 }

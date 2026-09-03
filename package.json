@@ -1,12 +1,13 @@
 {
   "name": "zero-knowledge-password-manager",
   "private": true,
-  "packageManager": "pnpm@9.15.5",
-  "engines": { "node": ">=20.0.0" },
+  "packageManager": "bun@1.2.15",
+  "engines": { "bun": ">=1.2.15" },
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "build": "pnpm -r --if-present build && cargo build --workspace",
-    "test": "pnpm -r --if-present test && cargo test --workspace",
-    "lint": "pnpm -r --if-present lint && cargo fmt --all -- --check",
-    "check:boundaries": "node scripts/check-boundaries.mjs"
+    "build": "bun run --filter '*' --if-present build && cargo build --workspace",
+    "test": "bun run --filter '*' --if-present test && cargo test --workspace",
+    "lint": "bun run --filter '*' --if-present lint && cargo fmt --all -- --check",
+    "check:boundaries": "bun scripts/check-boundaries.mjs"
   }
 }
