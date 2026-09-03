@@ -57,4 +57,14 @@ To be completed with the adapter protocol specification (G-01 delivery).
 
 ## Known gaps and blockers
 
-To be completed (G-03 wrap vectors, G-09 recovery placeholder).
+- **G-09 (recovery-wrap positive vector, blocked):**
+  `fixtures/crypto/recovery-semantics.json` carries an explicitly marked
+  48-byte structural placeholder (`ciphertextIsPlaceholder: true`), sized to
+  the contract expectation (32-byte wrapped AccountKey + 16-byte tag). A real
+  positive vector cannot be added in this rework: no authoritative external
+  source exists for this contract-specific construction, and generating one
+  would require an approved cryptographic implementation (library selection is
+  H01/G-06 reviewer work). Routed to H01 as a blocker.
+- G-03 (wrap vectors for `account-wrap`/`recovery-wrap`/`vault-wrap`/
+  `item-wrap`) and remaining matrix coverage are documented with the manifest
+  (see below; section to be completed with the manifest delivery).

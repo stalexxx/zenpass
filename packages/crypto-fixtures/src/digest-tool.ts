@@ -11,14 +11,11 @@
  * The tool only computes structural digests; it performs no cryptographic
  * operation on fixture content and never prints byte material.
  */
-import { parse } from "node:util";
 import { normalizedRecordDigest, parseDigestField, type JsonValue } from "./normalize.ts";
 
-const { values, positionals } = parse({
-  args: process.argv.slice(2),
-  options: { write: { type: "boolean", default: false } },
-  allowPositionals: true,
-});
+const args = process.argv.slice(2);
+const values = { write: args.filter((a) => a === "--write").length > 0 };
+const positionals = args.filter((a) => !a.startsWith("--"));
 
 if (positionals.length === 0) {
   console.error("usage: bun run src/digest-tool.ts [--write] <fixture.json> [...]");
