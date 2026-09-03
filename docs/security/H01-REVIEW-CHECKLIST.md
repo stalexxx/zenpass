@@ -200,7 +200,7 @@ freeze decision and must not be silently assumed approved.
 | G-05 | No independent (non-Rust) verification implementation/procedure output | AC-5 | A04 rework + H01 reviewer |
 | G-06 | No crypto library selection/version/license inventory; `crypto-core` has zero dependencies; "dependency licenses" input artifact absent | AC-3 | A04 or B01 proposal → H01 approval |
 | G-07 | No Argon2id target-device calibration evidence (500–1000 ms within bounds) | AC-2 (T08) | B01 (post-approval) or A04 |
-| G-08 | `ADR-0003`/`ADR-0004` referenced by `docs/security/DECISIONS.md` did not exist as files | Record integrity | ADR-0003 draft added by this task (unsigned); ADR-0004 remains open, owned by SD-0005 tasks |
+| G-08 | `ADR-0003`/`ADR-0004` referenced by `docs/security/DECISIONS.md` did not exist as files | Record integrity | ADR-0003 draft added by this task (unsigned); unsigned ADR-0004 draft added by the G-08 record-integrity follow-up (issue #1) — referential integrity restored, SD-0005 policy decisions remain pending in the draft |
 | G-09 | `recovery-semantics-01` placeholder ciphertext is 56 B; expected 48 B (32 B key + 16 B tag) for `recovery-wrap` | AC-4, AC-5 | A04 rework |
 | G-10 | Recovery-code display encoding unspecified ("any printable code") | AC-4 | H01 reviewer decision (or A04 rework) |
 | G-11 | `kdf-parameters-01.canonicalCborHex` is non-canonical: final `outputLength` 32 is encoded as single byte `0x20` (major type 1, decodes −1) instead of the RFC 8949 minimal form `0x18 0x20`; contradicts the contract's canonical-CBOR mandate. Discovered by prep-agent re-derivation (§3.2.1) | AC-2, AC-5 | A04 rework (fix fixture; verifier per G-01 must regression-test canonical integers) |
