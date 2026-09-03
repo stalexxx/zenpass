@@ -27,6 +27,9 @@ relative path expected by the existing migration runner and Compose runs
 migrations before the API. Compose also checks `/health/ready`, which verifies
 database readiness rather than only process liveness.
 
+The container uses the repository's pinned Bun runtime and frozen `bun.lock`;
+it does not create or modify package-manager metadata.
+
 Schema inspection: `db/migrations/001_initial.sql` stores opaque fields only
 for vault content (`ciphertext`), key material (`bundle`), and OPAQUE records
 (`credential_record`). It defines no columns for vault plaintext, passwords,
