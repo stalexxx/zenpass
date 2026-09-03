@@ -84,6 +84,8 @@ export function scanByteFields(root: unknown): SchemeScanResult {
       for (let i = 0; i < value.length; i++) stack.push({ path: `${path}[${i}]`, value: value[i] });
     } else if (value !== null && typeof value === "object") {
       for (const [key, child] of Object.entries(value)) {
+        // Provenance digests are metadata, not byte-field payloads.
+        if (key === "normalizedRecordSha256") continue;
         stack.push({ path: `${path}.${key}`, value: child });
       }
     }

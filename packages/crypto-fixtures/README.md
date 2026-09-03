@@ -53,7 +53,39 @@ documented in the sections below.
 
 ## Validator adapter
 
-To be completed with the adapter protocol specification (G-01 delivery).
+The adapter is an executable supplied by the reviewer; it is not bundled and
+is never imported by this package. Set `CRYPTO_FIXTURES_ADAPTER` to its command
+line (or pass `--adapter <command>`). The harness writes one JSON object per
+line to stdin and expects one response object per line on stdout.
+
+Every request has this shape and uses protocol version
+`crypto-fixtures-adapter/1`:
+
+```json
+{"protocol":"crypto-fixtures-adapter/1","caseId":"...","operation":"canonical-cbor|envelope|aead|wrap|opaque","inputs":{},"expected":{"outcome":"pass"}}
+```
+
+The adapter must respond with exactly one record for every request:
+
+```json
+{"caseId":"...","operation":"...","outcome":"pass"}
+{"caseId":"...","operation":"...","outcome":"reject","error":"NonCanonicalCbor"}
+```
+
+The harness rejects malformed JSON, unknown or duplicate case IDs, missing
+cases, operation mismatches, unknown typed errors, non-zero adapter exits, and
+outcomes/errors that differ from the fixture manifest. Adapter output is not
+trusted as evidence until independently reviewed by H01.
+
+## Manifest and structural rules
+
+The loader declares every JSON file in `fixtures/crypto/` and maps it to the
+operations above. IDs and case IDs are unique. All opaque byte fields use
+lowercase even-length `hex:` or padded standard `b64:`; unknown prefixes are
+rejected. Contract sizes (32-byte keys, 24-byte nonces, 16-byte tags, 16-byte
+KDF salts, 32-byte KDF output, and 48-byte wrapped-key output) are checked
+without decoding or performing cryptographic operations. Each fixture carries
+test-only provenance and a normalized SHA-256 record digest.
 
 ## Known gaps and blockers
 
@@ -65,6 +97,10 @@ To be completed with the adapter protocol specification (G-01 delivery).
   source exists for this contract-specific construction, and generating one
   would require an approved cryptographic implementation (library selection is
   H01/G-06 reviewer work). Routed to H01 as a blocker.
-- G-03 (wrap vectors for `account-wrap`/`recovery-wrap`/`vault-wrap`/
-  `item-wrap`) and remaining matrix coverage are documented with the manifest
-  (see below; section to be completed with the manifest delivery).
+- **G-03 (wrap vectors):** no authoritative, reproducible source was found
+  for the contract-specific AAD/key hierarchy construction. No wrap vector is
+  claimed here; the gap remains explicit for H01. The recovery placeholder is
+  likewise excluded from adapter cases.
+- **Derived negatives:** tamper cases are declared behavioral expectations
+  derived from a positive source vector; they are not claimed as authoritative
+  source vectors.
