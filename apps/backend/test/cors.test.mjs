@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { buildApp } from '../src/app.mjs';
 
 const localOrigin = 'http://127.0.0.1:4173';
+const localhostOrigin = 'http://localhost:4173';
 const config = Object.freeze({
-  nodeEnv: 'development', logLevel: 'silent', requestIdHeader: 'x-request-id', webOrigin: localOrigin,
+  nodeEnv: 'development', logLevel: 'silent', requestIdHeader: 'x-request-id', webOrigins: [localOrigin, localhostOrigin],
   opaqueServerSetup: null, sessionTtlSeconds: 900, authRateLimitMax: 10, authRateLimitWindowSeconds: 300,
 });
 
@@ -30,5 +31,13 @@ test('untrusted origins do not receive CORS permission', async () => {
   try {
     const response = await server.inject({ method: 'GET', url: '/health/live', headers: { origin: 'https://attacker.invalid' } });
     assert.equal(response.headers['access-control-allow-origin'], undefined);
+  } finally { await server.close(); }
+});
+
+test('localhost development alias is allowed without opening any other origin', async () => {
+  const server = app();
+  try {
+    const response = await server.inject({ method: 'GET', url: '/health/live', headers: { origin: localhostOrigin } });
+    assert.equal(response.headers['access-control-allow-origin'], localhostOrigin);
   } finally { await server.close(); }
 });

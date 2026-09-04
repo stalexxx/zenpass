@@ -9,7 +9,7 @@ import { registerSyncRoutes } from './sync/routes.mjs';
 
 export function buildApp(config, { pool = createPool(config), authContext = createAuthContext(config, { logger: console }) } = {}) {
   const app = Fastify({ logger: loggerOptions(config.logLevel), genReqId: (req) => req.headers[config.requestIdHeader] || randomUUID() });
-  const isAllowedWebOrigin = (origin) => typeof origin === 'string' && Boolean(config.webOrigin) && origin === config.webOrigin;
+  const isAllowedWebOrigin = (origin) => typeof origin === 'string' && Array.isArray(config.webOrigins) && config.webOrigins.includes(origin);
   app.addHook('onRequest', async (request, reply) => {
     const origin = request.headers.origin;
     if (!isAllowedWebOrigin(origin)) return;
