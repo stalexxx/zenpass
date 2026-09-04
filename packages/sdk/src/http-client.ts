@@ -51,7 +51,15 @@ export class ApiClient {
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // Browser `window.fetch` is Web-IDL bound. Storing it as a property and
+    // then calling `this.fetchImpl(...)` gives it the ApiClient as `this`,
+    // which Chrome rejects with "Illegal invocation" before any request is
+    // sent. Wrap both paths so the selected function is always invoked as a
+    // plain function; the default deliberately calls through globalThis.
+    const injectedFetch = options.fetchImpl;
+    this.fetchImpl = injectedFetch
+      ? (input, init) => injectedFetch(input, init)
+      : (input, init) => globalThis.fetch(input, init);
   }
 
   setAccessToken(token: string | null): void {

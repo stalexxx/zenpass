@@ -192,6 +192,16 @@ test("a fetch rejection surfaces as NetworkError, distinct from HttpError", asyn
   await expect(client.listDevices()).rejects.toThrow(NetworkError);
 });
 
+test("does not bind an injected fetch implementation to ApiClient", async () => {
+  const receiverSensitiveFetch = function (this: unknown) {
+    if (this !== undefined) throw new TypeError("Illegal invocation");
+    return Promise.resolve(new Response(JSON.stringify({ devices: [] }), { status: 200 }));
+  } as unknown as typeof fetch;
+  const client = new ApiClient({ baseUrl: "https://api.example", fetchImpl: receiverSensitiveFetch });
+  client.setAccessToken("t");
+  await expect(client.listDevices()).resolves.toEqual([]);
+});
+
 test("listChanges passes cursor/limit as query params and returns the ChangePage as-is", async () => {
   let seenUrl = "";
   const client = new ApiClient({
