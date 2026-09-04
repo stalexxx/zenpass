@@ -8,6 +8,8 @@ function makeHost() {
   const closed: number[] = [];
   const wasm: CryptoBackend = {
     unlockItemSession: () => 11,
+    createAccountSetup: () => ({ accountId: "a", vaultId: "v", itemId: "i", session: 12, kdfParametersCbor: new Uint8Array(), wrappedAccountKey: new Uint8Array(), wrappedVaultKey: new Uint8Array(), wrappedItemKey: new Uint8Array(), wrappedRecoveryKey: new Uint8Array(), recoveryKey: new Uint8Array(32) }),
+    unlockItemSessionWithRecovery: () => 13,
     sealItemPayload: () => new Uint8Array([9]), openItemPayload: () => new Uint8Array([8]),
     inspectEnvelope: () => ({ accountId: "a", vaultId: null, itemId: null, recordKind: "account-wrap", keyVersion: 1n }),
     closeSession: (session) => { closed.push(session); },
@@ -34,6 +36,7 @@ test("a close failure does not prevent closing other sessions or clearing the re
   let next = 0;
   const wasm: CryptoBackend = {
     unlockItemSession: () => ++next,
+    createAccountSetup: () => { throw "Internal"; }, unlockItemSessionWithRecovery: () => { throw "Internal"; }, 
     sealItemPayload: () => new Uint8Array(), openItemPayload: () => new Uint8Array(),
     inspectEnvelope: () => ({ accountId: "a", vaultId: null, itemId: null, recordKind: "account-wrap", keyVersion: 1n }),
     closeSession: (session) => { closes.push(session); if (session === 1) throw new Error("close failed"); },
@@ -69,7 +72,7 @@ test("non-finite sessions and over-limit buffers are malformed", () => {
 
 test("generated WASM string error codes map to the protocol error", () => {
   const wasm: CryptoBackend = {
-    unlockItemSession: () => { throw "AuthenticationFailed"; }, sealItemPayload: () => new Uint8Array(), openItemPayload: () => new Uint8Array(),
+    unlockItemSession: () => { throw "AuthenticationFailed"; }, createAccountSetup: () => { throw "Internal"; }, unlockItemSessionWithRecovery: () => { throw "Internal"; }, sealItemPayload: () => new Uint8Array(), openItemPayload: () => new Uint8Array(),
     inspectEnvelope: () => ({ accountId: "a", vaultId: null, itemId: null, recordKind: "account-wrap", keyVersion: 1n }), closeSession: () => {},
   };
   expect(new CryptoWorkerHost(wasm).handle(unlock("x"))).toEqual({ id: "x", ok: false, error: "AuthenticationFailed" });
@@ -77,7 +80,7 @@ test("generated WASM string error codes map to the protocol error", () => {
 
 test("worker zeroes its unlock password buffer even when backend fails", () => {
   const password = new Uint8Array([9, 8]);
-  const wasm: CryptoBackend = { unlockItemSession: () => { throw "AuthenticationFailed"; }, sealItemPayload: () => new Uint8Array(), openItemPayload: () => new Uint8Array(), inspectEnvelope: () => ({ accountId: "a", vaultId: null, itemId: null, recordKind: "account-wrap", keyVersion: 1n }), closeSession: () => {} };
+  const wasm: CryptoBackend = { unlockItemSession: () => { throw "AuthenticationFailed"; }, createAccountSetup: () => { throw "Internal"; }, unlockItemSessionWithRecovery: () => { throw "Internal"; }, sealItemPayload: () => new Uint8Array(), openItemPayload: () => new Uint8Array(), inspectEnvelope: () => ({ accountId: "a", vaultId: null, itemId: null, recordKind: "account-wrap", keyVersion: 1n }), closeSession: () => {} };
   const request = unlock("x"); request.password = password;
   new CryptoWorkerHost(wasm).handle(request);
   expect(password).toEqual(new Uint8Array([0, 0]));
@@ -102,4 +105,31 @@ test("real generated-WASM adapter handles Worker unlock, payload, error, and loc
     expect(host.handle({ id: "l", type: "lock" })).toMatchObject({ ok: true, type: "locked" });
     expect(host.handle({ id: "after", type: "open-item-payload", session, accountId: setup.accountId as string, vaultId: setup.vaultId as string, itemId: setup.itemId as string, keyVersion: 1n, envelope: (sealed as { bytes: Uint8Array }).bytes })).toMatchObject({ ok: false, error: "Locked" });
   } finally { setupPassword.fill(0); unlockPassword.fill(0); if (setupSession !== undefined) setupCrypto.close_session(setupSession); setupCrypto.free(); }
+});
+
+test("ADR-0008: real WASM adapter drives create-account-setup and unlock-item-session-with-recovery through the Worker host", async () => {
+  await init();
+  const password = new Uint8Array([3, 1, 4]);
+  const host = new CryptoWorkerHost(await createWasmBackend());
+  const setupResponse = host.handle({ id: "setup", type: "create-account-setup", password, reportedPhysicalMemoryKiB: 262144n, accountId: "acct_w", vaultId: "vault_w", itemId: "vault-key" });
+  expect(setupResponse.ok && setupResponse.type === "account-setup").toBe(true);
+  expect(password).toEqual(new Uint8Array([0, 0, 0])); // worker zeroes its copy after use
+  const setup = (setupResponse as { result: import("../src/index.ts").AccountSetupResult }).result;
+  expect(setup.recoveryKey.length).toBe(32);
+
+  const sealed = host.handle({ id: "s", type: "seal-item-payload", session: setup.session, accountId: setup.accountId, vaultId: setup.vaultId, itemId: "item_1", keyVersion: 1n, plaintext: new Uint8Array([42]) });
+  expect(sealed.ok && sealed.type === "bytes").toBe(true);
+  const envelope = (sealed as { bytes: Uint8Array }).bytes;
+
+  const recoveryKeyCopy = setup.recoveryKey.slice();
+  const recoverResponse = host.handle({ id: "r", type: "unlock-item-session-with-recovery", recoveryKey: recoveryKeyCopy, accountId: setup.accountId, vaultId: setup.vaultId, itemId: setup.itemId, accountKeyVersion: 1n, vaultKeyVersion: 1n, itemKeyVersion: 1n, wrappedAccountKey: setup.wrappedRecoveryKey, wrappedVaultKey: setup.wrappedVaultKey, wrappedItemKey: setup.wrappedItemKey });
+  expect(recoverResponse.ok && recoverResponse.type === "session").toBe(true);
+  expect(recoveryKeyCopy).toEqual(new Uint8Array(32)); // worker zeroes its copy after use
+  const recoverySession = (recoverResponse as { session: number }).session;
+  expect(host.handle({ id: "o", type: "open-item-payload", session: recoverySession, accountId: setup.accountId, vaultId: setup.vaultId, itemId: "item_1", keyVersion: 1n, envelope })).toMatchObject({ ok: true, type: "bytes", bytes: new Uint8Array([42]) });
+
+  const wrongRecoveryKey = new Uint8Array(32).fill(0x11);
+  expect(host.handle({ id: "wrong", type: "unlock-item-session-with-recovery", recoveryKey: wrongRecoveryKey, accountId: setup.accountId, vaultId: setup.vaultId, itemId: setup.itemId, accountKeyVersion: 1n, vaultKeyVersion: 1n, itemKeyVersion: 1n, wrappedAccountKey: setup.wrappedRecoveryKey, wrappedVaultKey: setup.wrappedVaultKey, wrappedItemKey: setup.wrappedItemKey })).toMatchObject({ ok: false, error: "InvalidRecoveryKit" });
+
+  host.handle({ id: "l", type: "lock" });
 });

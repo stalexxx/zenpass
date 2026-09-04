@@ -8,6 +8,10 @@ export async function createWasmBackend(): Promise<CryptoBackend> {
   const wasm = new WasmCrypto();
   return {
     unlockItemSession: (r: Extract<CryptoRequest, { type: "unlock-item-session" }>) => wasm.unlock_item_session(r.password, r.kdfParametersCbor, r.reportedPhysicalMemoryKiB, r.accountId, r.vaultId, r.itemId, r.accountKeyVersion, r.vaultKeyVersion, r.itemKeyVersion, r.wrappedAccountKey, r.wrappedVaultKey, r.wrappedItemKey),
+    createAccountSetup: (r: Extract<CryptoRequest, { type: "create-account-setup" }>) =>
+      wasm.create_account_setup(r.password, r.reportedPhysicalMemoryKiB, r.accountId, r.vaultId, r.itemId) as never,
+    unlockItemSessionWithRecovery: (r: Extract<CryptoRequest, { type: "unlock-item-session-with-recovery" }>) =>
+      wasm.unlock_item_session_with_recovery(r.recoveryKey, r.accountId, r.vaultId, r.itemId, r.accountKeyVersion, r.vaultKeyVersion, r.itemKeyVersion, r.wrappedAccountKey, r.wrappedVaultKey, r.wrappedItemKey),
     sealItemPayload: (s, a, v, i, k, p) => wasm.seal_item_payload(s, a, v, i, k, p),
     openItemPayload: (s, a, v, i, k, e) => wasm.open_item_payload(s, a, v, i, k, e),
     inspectEnvelope: (e) => wasm.inspect_envelope(e) as never,

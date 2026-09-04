@@ -21,7 +21,23 @@ export function installCryptoWorker(scope: WorkerScope, host: CryptoWorkerHost):
 }
 
 function copyResponse(response: CryptoResponse): CryptoResponse {
-  return response.ok && response.type === "bytes"
-    ? { ...response, bytes: response.bytes.slice() }
-    : response;
+  if (response.ok && response.type === "bytes") {
+    return { ...response, bytes: response.bytes.slice() };
+  }
+  if (response.ok && response.type === "account-setup") {
+    const r = response.result;
+    return {
+      ...response,
+      result: {
+        ...r,
+        kdfParametersCbor: r.kdfParametersCbor.slice(),
+        wrappedAccountKey: r.wrappedAccountKey.slice(),
+        wrappedVaultKey: r.wrappedVaultKey.slice(),
+        wrappedItemKey: r.wrappedItemKey.slice(),
+        wrappedRecoveryKey: r.wrappedRecoveryKey.slice(),
+        recoveryKey: r.recoveryKey.slice(),
+      },
+    };
+  }
+  return response;
 }
