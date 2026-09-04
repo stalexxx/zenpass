@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build a personal password manager with a zero-knowledge cloud, web client, and Chrome/Firefox extensions. The first release supports passwords, secure notes, TOTP, password generation, import/export, offline work, and encrypted synchronization. Desktop and mobile are follow-on clients over the same contracts.
+Build a personal password manager with a zero-knowledge cloud and web client. The first release supports passwords, secure notes, TOTP, password generation, import/export, offline work, and encrypted synchronization. Chrome/Firefox extensions, desktop, and mobile are follow-on clients over the same contracts.
 
 ## Operating rules
 
@@ -25,9 +25,10 @@ The integration agent is the only agent allowed to mark a task `MERGED`.
 ```text
 A00 ─┬─ A01 ─ A04 ─ H01 ─┬─ B01 ─ B03 ─┐
      ├─ A02 ──────────────┤             ├─ B05 ─┬─ C01 ─┐
-     └─ A03 ──────────────┤             │      └─ C02 ─┼─ C04 ─ C03 ─ Q01 ─ H02 ─ R01
-                          └─ B02 ─ B04 ─┘               ┘
-R01 ─┬─ D01
+     └─ A03 ──────────────┤             │      └─ C02 ─┴─ Q01 ─ H02 ─ R01
+                          └─ B02 ─ B04 ─┘
+R01 ─┬─ C04 (full browser-extension client)
+     ├─ D01
      └─ D02
 ```
 
@@ -43,12 +44,10 @@ R01 ─┬─ D01
 | 4 | B03, B04 | B01/B02 as applicable |
 | 5 | B05, C02 | B02+B04 and A02 |
 | 6 | C01 | B03+B05+C02 |
-| 7 | C04 | B03+B04+C01+C02; human ADR/security approval |
-| 8 | C03 | C01+C02+C04 |
-| Gate | Q01 | C03 merged |
+| Gate | Q01 | B04+B05+C01+C02 merged; extension client excluded from MVP |
 | Gate | H02 | Q01 clean or findings explicitly accepted |
 | Release | R01 | H02 complete |
-| Follow-on | D01, D02 | R01 complete and envelope/sync stable |
+| Follow-on | C04, D01, D02 | R01 complete and envelope/sync stable |
 
 ## Integration policy
 
