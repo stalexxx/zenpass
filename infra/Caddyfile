@@ -1,16 +1,18 @@
-# DOMAIN is supplied by infra/.env.production (for example, DOMAIN=<DOMAIN>,
-# or a bare IP such as 203.0.113.10 when no domain is available yet).
-# CADDY_TLS_DIRECTIVE selects the certificate source:
-#   - unset/empty (default): Caddy's automatic HTTPS via Let's Encrypt. Only
-#     works when DOMAIN is a real, publicly resolvable domain name.
-#   - "tls internal": Caddy's local/internal CA issues a self-signed cert.
-#     Required when DOMAIN is a bare IP address (Let's Encrypt does not
-#     validate IPs here) or for a domain that isn't publicly resolvable yet.
-#     Browsers will show an untrusted-certificate warning; acceptable for a
-#     personal/internal deployment, not for public release.
+# CADDY_SITE_ADDRESS is the Caddyfile site address Caddy actually binds to.
+# CADDY_TLS_DIRECTIVE selects the certificate source. Two supported shapes:
+#   - Real domain: CADDY_SITE_ADDRESS=<same value as DOMAIN>,
+#     CADDY_TLS_DIRECTIVE=<empty>. Caddy's automatic HTTPS obtains a public
+#     Let's Encrypt cert for that hostname via SNI.
+#   - Bare IP, no domain yet: CADDY_SITE_ADDRESS=:443, CADDY_TLS_DIRECTIVE=
+#     "tls internal". A real HTTP client does not send SNI for a literal IP
+#     address (RFC 6066), so the site address must NOT be host-restricted —
+#     ":443" matches every connection on that port regardless of SNI. Caddy's
+#     local/internal CA issues a self-signed cert; browsers will show an
+#     untrusted-certificate warning. Acceptable for personal/internal use
+#     only, not for public release.
 # Caddy's reverse_proxy does not log request bodies. No access-log block is
 # configured here, so encrypted request payloads are not recorded by Caddy.
-{$DOMAIN} {
+{$CADDY_SITE_ADDRESS} {
 	encode zstd gzip
 	{$CADDY_TLS_DIRECTIVE}
 
