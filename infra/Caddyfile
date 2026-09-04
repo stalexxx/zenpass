@@ -1,8 +1,18 @@
-# DOMAIN is supplied by infra/.env.production (for example, DOMAIN=<DOMAIN>).
+# DOMAIN is supplied by infra/.env.production (for example, DOMAIN=<DOMAIN>,
+# or a bare IP such as 203.0.113.10 when no domain is available yet).
+# CADDY_TLS_DIRECTIVE selects the certificate source:
+#   - unset/empty (default): Caddy's automatic HTTPS via Let's Encrypt. Only
+#     works when DOMAIN is a real, publicly resolvable domain name.
+#   - "tls internal": Caddy's local/internal CA issues a self-signed cert.
+#     Required when DOMAIN is a bare IP address (Let's Encrypt does not
+#     validate IPs here) or for a domain that isn't publicly resolvable yet.
+#     Browsers will show an untrusted-certificate warning; acceptable for a
+#     personal/internal deployment, not for public release.
 # Caddy's reverse_proxy does not log request bodies. No access-log block is
 # configured here, so encrypted request payloads are not recorded by Caddy.
 {$DOMAIN} {
 	encode zstd gzip
+	{$CADDY_TLS_DIRECTIVE}
 
 	reverse_proxy api:3000 {
 		header_up X-Forwarded-For {remote_host}

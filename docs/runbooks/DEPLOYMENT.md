@@ -45,6 +45,13 @@ It does not authorize a public release. The release owner supplies the real
    DNS propagation before starting Caddy, because Caddy obtains its TLS
    certificate automatically.
 
+   **No domain yet?** Set `DOMAIN=<VPS_IP>` and `CADDY_TLS_DIRECTIVE=tls
+   internal` in `infra/.env.production` instead. Caddy then issues a local
+   self-signed certificate for the IP; browsers will show an
+   untrusted-certificate warning on every visit. This is acceptable for
+   personal/internal use only — switch to a real domain (drop
+   `CADDY_TLS_DIRECTIVE` back to empty) before any public release.
+
 4. Clone the reviewed release commit and create the untracked production
    environment file:
 
