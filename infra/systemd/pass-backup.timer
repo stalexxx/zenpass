@@ -1,0 +1,17 @@
+# infra/systemd/pass-backup.timer
+#
+# Runs pass-backup.service daily at 03:15 local server time, with up to 15
+# minutes of random jitter to avoid every VPS in a fleet dumping at the
+# exact same second, and catches up a missed run (e.g. VPS was off) on next
+# boot. See docs/runbooks/BACKUP-RECOVERY.md for install steps.
+
+[Unit]
+Description=Daily pass VPS database backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=900
+Persistent=true
+
+[Install]
+WantedBy=timers.target
