@@ -1,0 +1,6 @@
+[test]
+# happy-dom gives `bun test` a real DOM/IndexedDB-shaped global environment
+# so component/accessibility/repository tests can exercise actual DOM APIs
+# and IndexedDB headlessly, without a browser. Dev-only (test.preload),
+# never shipped in the production bundle (see apps/web/scripts/build.ts).
+preload = ["./test/setup.ts"]

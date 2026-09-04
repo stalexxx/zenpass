@@ -2,5 +2,21 @@
   "name": "@zkpm/web",
   "private": true,
   "type": "module",
-  "scripts": { "build": "bun -e \"console.log('web scaffold build')\"", "test": "bun test", "lint": "bun -e \"console.log('web scaffold lint')\"" }
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "test": "bun test",
+    "lint": "bun -e \"console.log('web scaffold lint')\""
+  },
+  "dependencies": {
+    "@zkpm/sdk": "workspace:*",
+    "@zkpm/domain": "workspace:*",
+    "@zkpm/importers": "workspace:*",
+    "@pass/contracts": "workspace:*",
+    "crypto-worker": "workspace:*",
+    "crypto-wasm": "workspace:*"
+  },
+  "devDependencies": {
+    "happy-dom": "^15.11.7",
+    "fake-indexeddb": "^6.0.0"
+  }
 }
