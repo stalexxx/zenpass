@@ -26,6 +26,14 @@ export interface AppContext {
   online: boolean;
   navigate(view: View): void;
   resetInactivityTimer(): void;
+  /** Fire-and-forget: kicks off a pull+pushAll cycle. Callers use this
+   * right after a successful unlock/account creation so a newly created
+   * item actually reaches the server soon, rather than only ever syncing
+   * on the browser's `online` event (which never fires if the device was
+   * never offline in the first place). Safe to call when locked or when
+   * no sync trigger was provided (a no-op) — errors are swallowed by the
+   * underlying trigger, matching App.tsx's own syncNow(). */
+  triggerSync(): void;
 }
 
 export function createContext(opts: {
@@ -36,8 +44,9 @@ export function createContext(opts: {
   announcer: Announcer;
   navigate(view: View): void;
   resetInactivityTimer(): void;
+  triggerSync?(): void;
 }): AppContext {
   const sync = new SyncEngine(opts.api, opts.repo);
   const vault = new VaultSession(opts.crypto, opts.repo, sync);
-  return { ...opts, sync, vault, online: navigator.onLine };
+  return { ...opts, sync, vault, online: navigator.onLine, triggerSync: opts.triggerSync ?? (() => {}) };
 }

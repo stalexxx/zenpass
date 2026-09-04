@@ -58,6 +58,14 @@ export function App({ announcer, api, auth, cryptoClient, accountId, repo }: App
   // a re-render.
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // syncNow (below) closes over ctx/setPendingConflicts and so can only be
+  // defined after ctx exists; triggerSync needs to be part of ctx itself
+  // (unlock/onboarding call it right after establishing a session). This
+  // ref breaks the cycle: ctx.triggerSync reads whatever syncNow the later
+  // effect has stored here, defaulting to a no-op until then (there is
+  // nothing to sync before a session exists anyway).
+  const syncNowRef = useRef<() => void>(() => {});
+
   const ctx = useMemo(
     () =>
       createContext({
@@ -67,6 +75,7 @@ export function App({ announcer, api, auth, cryptoClient, accountId, repo }: App
         repo,
         announcer,
         navigate: (next) => setView(next),
+        triggerSync: () => { syncNowRef.current(); },
         resetInactivityTimer: () => {
           if (timerRef.current) clearTimeout(timerRef.current);
           timerRef.current = setTimeout(async () => {
@@ -125,6 +134,7 @@ export function App({ announcer, api, auth, cryptoClient, accountId, repo }: App
       }
     }
     window.addEventListener("online", syncNow);
+    syncNowRef.current = () => { syncNow(); };
 
     return () => {
       for (const evt of events) document.removeEventListener(evt, handleActivity);

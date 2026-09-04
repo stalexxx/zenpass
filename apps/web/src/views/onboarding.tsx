@@ -102,6 +102,7 @@ export function Onboarding({ ctx }: { ctx: AppContext }): ReactNode {
       password.fill(0);
       passwordRef.current = null;
       ctx.announcer.status("Vault created and unlocked.");
+      ctx.triggerSync();
       ctx.navigate({ name: "vault" });
     } catch {
       const message = "That doesn't match the recovery key shown. Please re-check and try again.";

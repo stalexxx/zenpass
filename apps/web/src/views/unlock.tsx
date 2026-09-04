@@ -33,6 +33,7 @@ export function Unlock({ ctx }: { ctx: AppContext }): ReactNode {
       await ctx.vault.unlockWithPassword(bundle as AccountBundle, passwordBytes.slice());
       ctx.announcer.status("Vault unlocked.");
       ctx.resetInactivityTimer();
+      ctx.triggerSync();
       // Best-effort, non-blocking: establish (or refresh) an authenticated
       // API session for sync. Offline/failed login does not block local
       // vault access.

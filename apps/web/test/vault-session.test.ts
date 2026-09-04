@@ -98,6 +98,43 @@ describe("VaultSession lock lifecycle", () => {
     expect(session.getItemData(id)?.title).toBe("ToDelete");
   });
 
+  test("an item saved but never pushed to the server is still visible after a fresh unlock (e.g. app relaunch)", async () => {
+    // Regression test: saveItem() durably queues the mutation
+    // (LocalRepository.enqueueMutation) but only writes the confirmed
+    // `items` store once SyncEngine actually pushes it successfully — sync
+    // itself only runs opportunistically (apps/web/src/App.tsx's `online`
+    // handler), so a device that is never observed transitioning
+    // offline->online never pushes at all. Without VaultSession overlaying
+    // still-queued mutations on unlock, a freshly created item would look
+    // silently lost on the next unlock/relaunch even though its ciphertext
+    // was safely persisted in the queue the whole time.
+    await init();
+    const client = new CryptoWorkerClient(new FakeWorker(await createWasmBackend()) as unknown as Worker);
+    const password = new Uint8Array([1, 2, 3, 4]);
+    const setupResult = await client.createAccountSetup({
+      password, reportedPhysicalMemoryKiB: 262_144n, accountId: "acct_relaunch", vaultId: "vault_relaunch", itemId: "vault-key",
+    });
+    const bundle: AccountBundle = {
+      accountId: setupResult.accountId, vaultId: setupResult.vaultId, itemId: setupResult.itemId,
+      kdfParametersCbor: setupResult.kdfParametersCbor, wrappedAccountKey: setupResult.wrappedAccountKey,
+      wrappedVaultKey: setupResult.wrappedVaultKey, wrappedItemKey: setupResult.wrappedItemKey,
+      wrappedRecoveryKey: setupResult.wrappedRecoveryKey,
+    };
+    const repo = new InMemoryLocalRepository(); // shared across both "app runs" below, like a real persistent IndexedDB would be
+    const api = new ApiClient({ baseUrl: "http://vault.test.invalid", fetchImpl: (() => { throw new Error("network unused in this test"); }) as unknown as typeof fetch });
+
+    const firstRun = new VaultSession(client, repo, new SyncEngine(api, repo));
+    await firstRun.unlockWithPassword(bundle, password.slice());
+    const id = await firstRun.saveItem({ type: "note", title: "Never synced", notes: "still here?" });
+    expect(firstRun.list().map((e) => e.title)).toEqual(["Never synced"]); // visible in-session, optimistically
+    await firstRun.lock(); // simulates the app closing with the mutation still only in the queue
+
+    const secondRun = new VaultSession(client, repo, new SyncEngine(api, repo));
+    await secondRun.unlockWithPassword(bundle, password.slice());
+    expect(secondRun.list().map((e) => e.title)).toEqual(["Never synced"]);
+    expect(secondRun.getItemData(id)?.notes).toBe("still here?");
+  });
+
   test("search matches title, username, and url case-insensitively", async () => {
     const { session } = await setup();
     await session.saveItem({ type: "login", title: "GitHub", username: "octocat", url: "https://github.com" });
