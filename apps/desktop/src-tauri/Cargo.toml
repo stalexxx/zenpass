@@ -1,0 +1,18 @@
+[package]
+name = "zkpm-desktop"
+version = "0.1.0"
+description = "Personal desktop client for the zero-knowledge password manager"
+edition = "2021"
+rust-version = "1.77"
+
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+crypto-ffi = { path = "../../../crates/crypto-ffi" }
+tauri = { version = "2", features = [] }
+
+[lints.rust]
+unsafe_code = "forbid"

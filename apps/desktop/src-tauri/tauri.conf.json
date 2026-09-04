@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ZK Password Manager",
+  "version": "0.1.0",
+  "identifier": "io.zkpm.desktop",
+  "build": {
+    "beforeDevCommand": "cd ../web && bun run dev",
+    "devUrl": "http://127.0.0.1:5173/?desktop=1",
+    "beforeBuildCommand": "cd ../web && bun run build",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "ZK Password Manager",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8787 http://localhost:8787; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

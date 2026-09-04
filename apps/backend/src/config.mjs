@@ -27,7 +27,7 @@ export function loadConfig(env = process.env) {
     // a wildcard origin for a bearer-token API.
     webOrigins: env.WEB_ORIGIN
       ? env.WEB_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean)
-      : (nodeEnv === 'development' ? ['http://127.0.0.1:4173', 'http://localhost:4173'] : []),
+      : (nodeEnv === 'development' ? ['http://127.0.0.1:4173', 'http://localhost:4173', 'tauri://localhost'] : []),
     requestIdHeader: 'x-request-id',
     // ADR-0006 §3: process-wide OPAQUE server setup, base64. Required in
     // production; auto-generated ephemerally otherwise.

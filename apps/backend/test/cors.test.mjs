@@ -4,8 +4,9 @@ import { buildApp } from '../src/app.mjs';
 
 const localOrigin = 'http://127.0.0.1:4173';
 const localhostOrigin = 'http://localhost:4173';
+const tauriOrigin = 'tauri://localhost';
 const config = Object.freeze({
-  nodeEnv: 'development', logLevel: 'silent', requestIdHeader: 'x-request-id', webOrigins: [localOrigin, localhostOrigin],
+  nodeEnv: 'development', logLevel: 'silent', requestIdHeader: 'x-request-id', webOrigins: [localOrigin, localhostOrigin, tauriOrigin],
   opaqueServerSetup: null, sessionTtlSeconds: 900, authRateLimitMax: 10, authRateLimitWindowSeconds: 300,
 });
 
@@ -39,5 +40,13 @@ test('localhost development alias is allowed without opening any other origin', 
   try {
     const response = await server.inject({ method: 'GET', url: '/health/live', headers: { origin: localhostOrigin } });
     assert.equal(response.headers['access-control-allow-origin'], localhostOrigin);
+  } finally { await server.close(); }
+});
+
+test('Tauri local WebView receives the same narrow CORS permission', async () => {
+  const server = app();
+  try {
+    const response = await server.inject({ method: 'GET', url: '/health/live', headers: { origin: tauriOrigin } });
+    assert.equal(response.headers['access-control-allow-origin'], tauriOrigin);
   } finally { await server.close(); }
 });
