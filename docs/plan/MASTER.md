@@ -30,6 +30,7 @@ A00 ─┬─ A01 ─ A04 ─ H01 ─┬─ B01 ─ B03 ─┐
 R01 ─┬─ C04 (full browser-extension client)
      ├─ D01
      └─ D02
+C01 ── C05 (React + TypeScript web-client migration)
 ```
 
 ## Waves
@@ -48,6 +49,7 @@ R01 ─┬─ C04 (full browser-extension client)
 | Gate | H02 | Q01 clean or findings explicitly accepted |
 | Release | R01 | H02 complete |
 | Follow-on | C04, D01, D02 | R01 complete and envelope/sync stable |
+| Client follow-on | C05 | C01 merged; API/crypto/sync contracts frozen |
 
 ## Integration policy
 
