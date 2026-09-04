@@ -9,6 +9,7 @@ export class WasmCrypto {
     free(): void;
     [Symbol.dispose](): void;
     close_session(session: number): void;
+    create_account_setup(password: Uint8Array, reported_physical_memory_kib: bigint, account_id: string, vault_id: string, item_id: string): any;
     /**
      * Runtime-only setup path: creates fresh keys internally and returns only
      * encrypted wrappers plus canonical public metadata. No key bytes leave
@@ -25,6 +26,7 @@ export class WasmCrypto {
      * server transport authority and must not simulate one.
      */
     unlock_item_session(password: Uint8Array, kdf_parameters_cbor: Uint8Array, reported_physical_memory_kib: bigint, account_id: string, vault_id: string, item_id: string, account_key_version: bigint, vault_key_version: bigint, item_key_version: bigint, wrapped_account_key: Uint8Array, wrapped_vault_key: Uint8Array, wrapped_item_key: Uint8Array): number;
+    unlock_item_session_with_recovery(recovery_key: Uint8Array, account_id: string, vault_id: string, item_id: string, account_key_version: bigint, vault_key_version: bigint, item_key_version: bigint, wrapped_account_key: Uint8Array, wrapped_vault_key: Uint8Array, wrapped_item_key: Uint8Array): number;
 }
 
 /**
@@ -81,12 +83,14 @@ export interface InitOutput {
     readonly encode_item_payload_aad: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint) => [number, number, number, number];
     readonly protocol_status: () => [number, number];
     readonly wasmcrypto_close_session: (a: number, b: number) => void;
+    readonly wasmcrypto_create_account_setup: (a: number, b: number, c: number, d: bigint, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
     readonly wasmcrypto_create_item_session_for_setup: (a: number, b: number, c: number, d: bigint) => [number, number, number];
     readonly wasmcrypto_inspect_envelope: (a: number, b: number, c: number) => [number, number, number];
     readonly wasmcrypto_new: () => number;
     readonly wasmcrypto_open_item_payload: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number, number];
     readonly wasmcrypto_seal_item_payload: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number, number];
     readonly wasmcrypto_unlock_item_session: (a: number, b: number, c: number, d: number, e: number, f: bigint, g: number, h: number, i: number, j: number, k: number, l: number, m: bigint, n: bigint, o: bigint, p: number, q: number, r: number, s: number, t: number, u: number) => [number, number, number];
+    readonly wasmcrypto_unlock_item_session_with_recovery: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: bigint, k: bigint, l: bigint, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number, number];
     readonly __wbindgen_exn_store: (a: number) => void;
     readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;

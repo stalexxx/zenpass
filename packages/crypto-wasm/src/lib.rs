@@ -11,10 +11,11 @@ use std::collections::HashMap;
 use crypto_core::envelope::{encode_aad, inspect_envelope, Context, RecordKind};
 use crypto_core::kdf::{derive_unlock_key, KdfParams};
 use crypto_core::keys::{
-    open_account_key_with_password, open_item_key, open_item_payload, open_vault_key,
-    seal_item_payload, wrap_account_key_with_password, wrap_item_key, wrap_vault_key, AccountKey,
-    ItemKey, VaultKey,
+    open_account_key_with_password, open_account_key_with_recovery, open_item_key,
+    open_item_payload, open_vault_key, seal_item_payload, wrap_account_key_with_password,
+    wrap_item_key, wrap_vault_key, AccountKey, ItemKey, RecoveryKey, VaultKey,
 };
+use crypto_core::recovery::RecoveryKit;
 use js_sys::{Object, Reflect};
 use wasm_bindgen::prelude::*;
 use zeroize::Zeroizing;
@@ -257,6 +258,155 @@ impl WasmCrypto {
             derive_unlock_key(&password, &params, reported_physical_memory_kib).map_err(error)?;
         let account = open_account_key_with_password(
             &unlock,
+            &wrapped_account_key,
+            &account_id,
+            account_key_version,
+        )
+        .map_err(error)?;
+        let vault = open_vault_key(
+            &account,
+            &wrapped_vault_key,
+            &account_id,
+            &vault_id,
+            vault_key_version,
+        )
+        .map_err(error)?;
+        let item = open_item_key(
+            &vault,
+            &wrapped_item_key,
+            &account_id,
+            &vault_id,
+            &item_id,
+            item_key_version,
+        )
+        .map_err(error)?;
+        let id = self.next_session;
+        self.next_session = self
+            .next_session
+            .checked_add(1)
+            .ok_or_else(|| JsValue::from_str("Internal"))?;
+        self.sessions.insert(id, item);
+        Ok(id)
+    }
+
+    // ADR-0008 addition (C01): account-setup for real registration. Unlike
+    // `create_item_session_for_setup` above (which hardcodes synthetic ids
+    // for binding lifecycle tests), this accepts caller-supplied
+    // `account_id`/`vault_id`/`item_id` so the wrapped material lines up
+    // with the identifiers the caller actually persists and sends to the
+    // backend. It mirrors that method's shape (fresh AccountKey/VaultKey/
+    // ItemKey, password wrap, vault wrap, item wrap, open session) and
+    // additionally wraps the AccountKey independently under a fresh
+    // RecoveryKey (`crypto_core::recovery::RecoveryKit::generate`),
+    // returning the recovery key's raw bytes exactly once. The caller must
+    // display those bytes for the user to save and never persist them.
+    //
+    // MVP key-hierarchy scope note: C01 uses a single vault-wide ItemKey
+    // (wrapped once here under a caller-chosen synthetic `item_id`, e.g.
+    // "vault-key") to encrypt every item in the vault, distinguishing
+    // items only via the per-item AAD context (`item_id`, `key_version`)
+    // passed to `seal_item_payload`/`open_item_payload` — not via a
+    // separate wrapped ItemKey per item. True per-item key issuance would
+    // need a further WASM export outside ADR-0008's narrow grant
+    // (account-setup + recovery-kit opening only) and is deferred; see the
+    // completion report's Known limitations.
+    #[wasm_bindgen]
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_account_setup(
+        &mut self,
+        password: Vec<u8>,
+        reported_physical_memory_kib: u64,
+        account_id: String,
+        vault_id: String,
+        item_id: String,
+    ) -> Result<JsValue, JsValue> {
+        let password = Zeroizing::new(password);
+        let params = KdfParams::generate(65_536, 3, 1).map_err(error)?;
+        let unlock =
+            derive_unlock_key(&password, &params, reported_physical_memory_kib).map_err(error)?;
+        let account = AccountKey::generate();
+        let vault = VaultKey::generate();
+        let item = ItemKey::generate();
+        let account_wrap =
+            wrap_account_key_with_password(&unlock, &account, &account_id, 1).map_err(error)?;
+        let vault_wrap =
+            wrap_vault_key(&account, &vault, &account_id, &vault_id, 1).map_err(error)?;
+        let item_wrap =
+            wrap_item_key(&vault, &item, &account_id, &vault_id, &item_id, 1).map_err(error)?;
+        let (recovery_key, kit) = RecoveryKit::generate(&account, &account_id, 1).map_err(error)?;
+        let session = self.next_session;
+        self.next_session += 1;
+        self.sessions.insert(session, item);
+        let result = Object::new();
+        for (name, value) in [
+            ("accountId", JsValue::from_str(&account_id)),
+            ("vaultId", JsValue::from_str(&vault_id)),
+            ("itemId", JsValue::from_str(&item_id)),
+            ("session", JsValue::from_f64(f64::from(session))),
+        ] {
+            Reflect::set(&result, &name.into(), &value)
+                .map_err(|_| JsValue::from_str("Internal"))?;
+        }
+        for (name, value) in [
+            (
+                "kdfParametersCbor",
+                params.encode_canonical_cbor().map_err(error)?,
+            ),
+            ("wrappedAccountKey", account_wrap),
+            ("wrappedVaultKey", vault_wrap),
+            ("wrappedItemKey", item_wrap),
+            ("wrappedRecoveryKey", kit.wrapped_account_key().to_vec()),
+        ] {
+            Reflect::set(
+                &result,
+                &name.into(),
+                &js_sys::Uint8Array::from(value.as_slice()),
+            )
+            .map_err(|_| JsValue::from_str("Internal"))?;
+        }
+        // Returned exactly once: the caller must display it for the user to
+        // save (per ADR-0008 §2, provisional labeling only) and must never
+        // persist it itself.
+        Reflect::set(
+            &result,
+            &"recoveryKey".into(),
+            &js_sys::Uint8Array::from(recovery_key.as_bytes().as_slice()),
+        )
+        .map_err(|_| JsValue::from_str("Internal"))?;
+        Ok(result.into())
+    }
+
+    // ADR-0008 addition (C01): open an item session using the recovery key
+    // instead of the password, mirroring `unlock_item_session`'s shape
+    // exactly (same wrapped-material parameters, same session-handle
+    // return) but substituting `open_account_key_with_recovery` for the
+    // password-derived unlock. Used both for the registration
+    // reveal/confirm step (proving the user captured the correct recovery
+    // key by actually opening the account with it) and, in principle, for
+    // a future account-recovery unlock path — this export alone does not
+    // implement password reset (`/account/recovery-reset` stays blocked).
+    #[wasm_bindgen]
+    #[allow(clippy::too_many_arguments)]
+    pub fn unlock_item_session_with_recovery(
+        &mut self,
+        recovery_key: Vec<u8>,
+        account_id: String,
+        vault_id: String,
+        item_id: String,
+        account_key_version: u64,
+        vault_key_version: u64,
+        item_key_version: u64,
+        wrapped_account_key: Vec<u8>,
+        wrapped_vault_key: Vec<u8>,
+        wrapped_item_key: Vec<u8>,
+    ) -> Result<u32, JsValue> {
+        let recovery_key_bytes = Zeroizing::new(recovery_key);
+        let wrapped_account_key = Zeroizing::new(wrapped_account_key);
+        let wrapped_vault_key = Zeroizing::new(wrapped_vault_key);
+        let wrapped_item_key = Zeroizing::new(wrapped_item_key);
+        let recovery_key = RecoveryKey::from_bytes(&recovery_key_bytes).map_err(error)?;
+        let account = open_account_key_with_recovery(
+            &recovery_key,
             &wrapped_account_key,
             &account_id,
             account_key_version,

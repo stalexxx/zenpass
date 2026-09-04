@@ -1,10 +1,13 @@
-import type { CryptoRequest, CryptoResponse } from "./protocol.ts";
+import type { AccountSetupResult, CryptoRequest, CryptoResponse } from "./protocol.ts";
 
-export type { CryptoRequest, CryptoResponse } from "./protocol.ts";
+export type { AccountSetupResult, CryptoRequest, CryptoResponse } from "./protocol.ts";
 
 /** Implemented by the generated WASM adapter; session values are opaque ids. */
 export interface CryptoBackend {
   unlockItemSession(request: Extract<CryptoRequest, { type: "unlock-item-session" }>): number;
+  // ADR-0008 (C01) additions, additive to B03's existing backend surface above.
+  createAccountSetup(request: Extract<CryptoRequest, { type: "create-account-setup" }>): AccountSetupResult;
+  unlockItemSessionWithRecovery(request: Extract<CryptoRequest, { type: "unlock-item-session-with-recovery" }>): number;
   sealItemPayload(session: number, accountId: string, vaultId: string, itemId: string, keyVersion: bigint, plaintext: Uint8Array): Uint8Array;
   openItemPayload(session: number, accountId: string, vaultId: string, itemId: string, keyVersion: bigint, envelope: Uint8Array): Uint8Array;
   inspectEnvelope(envelope: Uint8Array): { accountId: string; vaultId: string | null; itemId: string | null; recordKind: string; keyVersion: bigint };
@@ -40,6 +43,24 @@ export class CryptoWorkerHost {
             // This is the Worker-owned structured-clone buffer. It does not
             // erase caller/UI or JS-engine copies, which remain caller-owned.
             message.password.fill(0);
+          }
+        }
+        case "create-account-setup": {
+          try {
+            const result = this.wasm.createAccountSetup(message);
+            this.sessions.add(result.session);
+            return { id: message.id, ok: true, type: "account-setup", result };
+          } finally {
+            message.password.fill(0);
+          }
+        }
+        case "unlock-item-session-with-recovery": {
+          try {
+            const session = this.wasm.unlockItemSessionWithRecovery(message);
+            this.sessions.add(session);
+            return { id: message.id, ok: true, type: "session", session };
+          } finally {
+            message.recoveryKey.fill(0);
           }
         }
         case "seal-item-payload":
@@ -100,6 +121,12 @@ function isRequest(value: unknown): value is CryptoRequest {
     case "unlock-item-session": return exact(["id", "type", "password", "kdfParametersCbor", "reportedPhysicalMemoryKiB", "accountId", "vaultId", "itemId", "accountKeyVersion", "vaultKeyVersion", "itemKeyVersion", "wrappedAccountKey", "wrappedVaultKey", "wrappedItemKey"]) &&
       payload("password", MAX_ITEM_BYTES) && payload("kdfParametersCbor", 64 * 1024) && payload("wrappedAccountKey", 64 * 1024) && payload("wrappedVaultKey", 64 * 1024) && payload("wrappedItemKey", 64 * 1024) &&
       typeof request.reportedPhysicalMemoryKiB === "bigint" && request.reportedPhysicalMemoryKiB > 0n && typeof request.accountId === "string" && typeof request.vaultId === "string" && typeof request.itemId === "string" && typeof request.accountKeyVersion === "bigint" && request.accountKeyVersion > 0n && typeof request.vaultKeyVersion === "bigint" && request.vaultKeyVersion > 0n && typeof request.itemKeyVersion === "bigint" && request.itemKeyVersion > 0n;
+    case "create-account-setup": return exact(["id", "type", "password", "reportedPhysicalMemoryKiB", "accountId", "vaultId", "itemId"]) &&
+      payload("password", MAX_ITEM_BYTES) && typeof request.reportedPhysicalMemoryKiB === "bigint" && request.reportedPhysicalMemoryKiB > 0n &&
+      typeof request.accountId === "string" && typeof request.vaultId === "string" && typeof request.itemId === "string";
+    case "unlock-item-session-with-recovery": return exact(["id", "type", "recoveryKey", "accountId", "vaultId", "itemId", "accountKeyVersion", "vaultKeyVersion", "itemKeyVersion", "wrappedAccountKey", "wrappedVaultKey", "wrappedItemKey"]) &&
+      payload("recoveryKey", 64) && payload("wrappedAccountKey", 64 * 1024) && payload("wrappedVaultKey", 64 * 1024) && payload("wrappedItemKey", 64 * 1024) &&
+      typeof request.accountId === "string" && typeof request.vaultId === "string" && typeof request.itemId === "string" && typeof request.accountKeyVersion === "bigint" && request.accountKeyVersion > 0n && typeof request.vaultKeyVersion === "bigint" && request.vaultKeyVersion > 0n && typeof request.itemKeyVersion === "bigint" && request.itemKeyVersion > 0n;
     case "lock": return exact(["id", "type"]);
     case "inspect-envelope": return exact(["id", "type", "envelope"]) && payload("envelope", MAX_ENVELOPE_BYTES);
     case "seal-item-payload": return exact(["id", "type", "session", "accountId", "vaultId", "itemId", "keyVersion", "plaintext"]) && context() && payload("plaintext", MAX_ITEM_BYTES);
