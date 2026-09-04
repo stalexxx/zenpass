@@ -3,7 +3,7 @@
 // entry and the crypto Worker entry as two independent browser targets,
 // plus copies the WASM binary and stylesheet next to them, into
 // apps/web/dist — exactly what index.html references.
-import { mkdir, cp, rm } from "node:fs/promises";
+import { mkdir, cp, rm, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 
 const root = new URL("..", import.meta.url).pathname;
@@ -31,6 +31,8 @@ for (const [name, result] of [["main", mainResult], ["worker-entry", workerResul
 }
 
 await cp(`${root}src/style.css`, `${dist}/style.css`);
+const productionIndex = (await readFile(`${root}index.html`, "utf8")).replaceAll("./dist/", "./");
+await writeFile(`${dist}/index.html`, productionIndex);
 
 const wasmSrc = `${root}../../packages/crypto-wasm/pkg/crypto_wasm_bg.wasm`;
 if (!existsSync(wasmSrc)) {
