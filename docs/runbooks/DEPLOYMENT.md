@@ -45,13 +45,18 @@ It does not authorize a public release. The release owner supplies the real
    DNS propagation before starting Caddy, because Caddy obtains its TLS
    certificate automatically.
 
-   **No domain yet?** Set `DOMAIN=<VPS_IP>`, `CADDY_SITE_ADDRESS=:443`, and
-   `CADDY_TLS_DIRECTIVE=tls internal` in `infra/.env.production` instead. A
-   real browser (and curl, and every standard TLS library) does not send SNI
-   when connecting to a literal IP address (RFC 6066), so the site address
-   must not be host-restricted — only `:443` (not the IP itself) reliably
-   matches those connections; Caddy then issues a local self-signed
-   certificate. Browsers will show an untrusted-certificate warning on every
+   **No domain yet?** Run `infra/generate-selfsigned-cert.sh <VPS_IP>` once
+   (writes `infra/certs/selfsigned.{crt,key}`, git-ignored). Then set
+   `DOMAIN=<VPS_IP>`, `CADDY_SITE_ADDRESS=:443`, and
+   `CADDY_TLS_DIRECTIVE=tls /certs/selfsigned.crt /certs/selfsigned.key` in
+   `infra/.env.production` instead. A real browser (and curl, and every
+   standard TLS library) does not send SNI when connecting to a literal IP
+   address (RFC 6066), so the site address must not be host-restricted —
+   only `:443` (not the IP itself) matches those connections — and the
+   certificate must be a statically loaded file rather than automatically
+   issued: Caddy's automatic HTTPS, including its `tls internal` on-demand
+   issuer, is keyed by SNI and has nothing to issue against when SNI is
+   absent. Browsers will show an untrusted-certificate warning on every
    visit. This is acceptable for personal/internal use only — switch to a
    real domain (`CADDY_SITE_ADDRESS=<DOMAIN>`, `CADDY_TLS_DIRECTIVE=` empty)
    before any public release.

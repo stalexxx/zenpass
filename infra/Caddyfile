@@ -4,12 +4,16 @@
 #     CADDY_TLS_DIRECTIVE=<empty>. Caddy's automatic HTTPS obtains a public
 #     Let's Encrypt cert for that hostname via SNI.
 #   - Bare IP, no domain yet: CADDY_SITE_ADDRESS=:443, CADDY_TLS_DIRECTIVE=
-#     "tls internal". A real HTTP client does not send SNI for a literal IP
-#     address (RFC 6066), so the site address must NOT be host-restricted —
-#     ":443" matches every connection on that port regardless of SNI. Caddy's
-#     local/internal CA issues a self-signed cert; browsers will show an
-#     untrusted-certificate warning. Acceptable for personal/internal use
-#     only, not for public release.
+#     "tls /certs/selfsigned.crt /certs/selfsigned.key" (generate that pair
+#     with infra/generate-selfsigned-cert.sh <VPS_IP> first). A real HTTP
+#     client never sends SNI when connecting to a literal IP address (RFC
+#     6066), so the site address must NOT be host-restricted (":443", not
+#     the IP itself) and the certificate must be loaded statically rather
+#     than issued automatically — Caddy's automatic HTTPS (including its
+#     "tls internal" on-demand issuer) is keyed by SNI and has nothing to
+#     issue against when SNI is absent. Browsers will show an
+#     untrusted-certificate warning for the self-signed cert. Acceptable for
+#     personal/internal use only, not for public release.
 # Caddy's reverse_proxy does not log request bodies. No access-log block is
 # configured here, so encrypted request payloads are not recorded by Caddy.
 {$CADDY_SITE_ADDRESS} {
