@@ -19,7 +19,7 @@ const shared = {
   sourcemap: "linked" as const,
 };
 
-const mainResult = await Bun.build({ ...shared, entrypoints: [`${root}src/main.ts`] });
+const mainResult = await Bun.build({ ...shared, entrypoints: [`${root}src/main.tsx`] });
 const workerResult = await Bun.build({ ...shared, entrypoints: [`${root}src/worker-entry.ts`] });
 
 for (const [name, result] of [["main", mainResult], ["worker-entry", workerResult]] as const) {

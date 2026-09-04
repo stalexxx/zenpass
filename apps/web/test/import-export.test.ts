@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { renderImport } from "../src/views/import.ts";
-import { renderExport, buildEncryptedExport } from "../src/views/export.ts";
+import { renderImport } from "../src/views/import.tsx";
+import { renderExport, buildEncryptedExport } from "../src/views/export.tsx";
 import { buildTestContext } from "./helpers/context.ts";
 import { generateTestBundle } from "./helpers/bundle.ts";
 

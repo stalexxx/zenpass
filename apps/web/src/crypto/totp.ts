@@ -63,12 +63,12 @@ const SUBTLE_ALGORITHM: Record<TotpAlgorithm, string> = {
 async function hmac(secret: Uint8Array, message: Uint8Array, algorithm: TotpAlgorithm): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey(
     "raw",
-    secret,
+    secret as BufferSource,
     { name: "HMAC", hash: SUBTLE_ALGORITHM[algorithm] },
     false,
     ["sign"],
   );
-  const signature = await crypto.subtle.sign("HMAC", key, message);
+  const signature = await crypto.subtle.sign("HMAC", key, message as BufferSource);
   return new Uint8Array(signature);
 }
 

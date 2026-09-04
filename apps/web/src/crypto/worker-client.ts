@@ -14,8 +14,11 @@
 // at all.
 import type { CryptoRequest, CryptoResponse } from "../../../../packages/crypto-worker/src/protocol.ts";
 
+type CryptoErrorResponse = Extract<CryptoResponse, { ok: false }>;
+type CryptoOkResponse = Extract<CryptoResponse, { ok: true }>;
+
 export class CryptoError extends Error {
-  constructor(readonly code: CryptoResponse["error"]) {
+  constructor(readonly code: CryptoErrorResponse["error"]) {
     super(`crypto worker error: ${code}`);
     this.name = "CryptoError";
   }
@@ -71,7 +74,7 @@ export class CryptoWorkerClient {
     return id;
   }
 
-  private async call(request: CryptoRequest): Promise<CryptoResponse> {
+  private async call(request: CryptoRequest): Promise<CryptoOkResponse> {
     const response = await this.send(request);
     if (!response.ok) throw new CryptoError(response.error);
     return response;
