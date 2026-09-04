@@ -1,0 +1,34 @@
+# infra/systemd/pass-backup.service
+#
+# Example systemd unit that runs infra/backup.sh once. Install alongside
+# pass-backup.timer to run it on a schedule (see docs/runbooks/BACKUP-RECOVERY.md).
+#
+# Install (as root, on the VPS):
+#   cp infra/systemd/pass-backup.service infra/systemd/pass-backup.timer /etc/systemd/system/
+#   # edit WorkingDirectory and the environment values below to match your deployment
+#   systemctl daemon-reload
+#   systemctl enable --now pass-backup.timer
+
+[Unit]
+Description=pass VPS database backup
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/pass
+Environment=COMPOSE_FILE=infra/docker-compose.prod.yml
+Environment=POSTGRES_SERVICE=postgres
+Environment=POSTGRES_DB=pass
+Environment=POSTGRES_USER=pass
+Environment=BACKUP_DIR=/var/backups/pass-vps
+Environment=RETENTION_DAILY=14
+Environment=RETENTION_WEEKLY=8
+ExecStart=/opt/pass/infra/backup.sh
+
+# Hardening: this unit only needs to invoke `docker compose exec` and write
+# to BACKUP_DIR, not the rest of the filesystem.
+ProtectSystem=strict
+ReadWritePaths=/var/backups/pass-vps
+PrivateTmp=true
+NoNewPrivileges=true
