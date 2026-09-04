@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { renderOnboarding } from "../src/views/onboarding.ts";
+import { renderOnboarding } from "../src/views/onboarding.tsx";
 import { buildTestContext } from "./helpers/context.ts";
 import { loadAccountBundle } from "../src/vault/account-bundle.ts";
 import { getOrCreateAccountId } from "../src/crypto/account-id.ts";

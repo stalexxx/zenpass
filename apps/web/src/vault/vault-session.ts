@@ -105,6 +105,36 @@ export class VaultSession {
         // deliberately logs nothing.
       }
     }
+    // A create/edit is durably queued (LocalRepository.enqueueMutation)
+    // *before* any network call — see SyncEngine.enqueueEdit — but only
+    // lands in the confirmed `items` store once the server accepts it
+    // (SyncEngine.pushOne's 201 path). Sync itself only runs opportunistically
+    // (apps/web/src/App.tsx's `online` handler), so a newly created item can
+    // sit queued-but-unconfirmed indefinitely (e.g. this device never sees an
+    // offline->online transition, or the server is briefly unreachable).
+    // Without this overlay, a fresh unlock would only ever see confirmed
+    // records and the item would look silently lost, even though its
+    // ciphertext is safely persisted in the queue. CONFLICT entries are
+    // deliberately excluded — those need explicit caller resolution
+    // (ctx.vault.decryptConflict/resolveConflict), not a plain overlay.
+    for (const entry of await this.repo.listQueuedMutations()) {
+      if (entry.state === "CONFLICT") continue;
+      const { mutation } = entry;
+      if (mutation.vaultId !== this.bundle.vaultId) continue;
+      if (mutation.deleted) {
+        this.deletedLocally.add(mutation.itemId);
+        continue;
+      }
+      try {
+        const plaintext = await this.client.openItemPayload(
+          this.session, this.bundle.accountId, this.bundle.vaultId, mutation.itemId, KEY_VERSION, decodeB64(mutation.ciphertext),
+        );
+        this.itemCache.set(mutation.itemId, decodeItemData(plaintext));
+        this.deletedLocally.delete(mutation.itemId);
+      } catch {
+        // Same rationale as above: skip, log nothing.
+      }
+    }
   }
 
   /** Lock: clears the in-memory key handle (via the Worker), the search

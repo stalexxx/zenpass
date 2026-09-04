@@ -42,3 +42,13 @@ for (const key of Object.getOwnPropertyNames(window)) {
     // test setup over a global this suite doesn't use.
   }
 }
+
+// `window` itself is deliberately excluded from the copy above (it's one
+// of the "identity" properties that would otherwise shadow Bun's own
+// globals). react-dom's event-priority plumbing (`resolveUpdatePriority`)
+// reads `window.event`, so it needs *some* `window` binding to exist —
+// exactly like a real browser, where `window === globalThis` at top
+// level. Aliasing it to `globalThis` (rather than happy-dom's window
+// object) gives react-dom what it needs without reintroducing the
+// shadowing problem the SKIP set exists to avoid.
+target.window = target;

@@ -1,7 +1,20 @@
 import { describe, expect, test } from "bun:test";
-import { renderOnboarding } from "../src/views/onboarding.ts";
-import { renderUnlock } from "../src/views/unlock.ts";
-import { renderVault } from "../src/views/vault.ts";
+
+// Click handlers update React state asynchronously (React 18+ schedules
+// even discrete-event updates through its own scheduler rather than
+// flushing before `dispatchEvent` returns for a non-trusted synthetic
+// event) — so, like the other view tests in this suite, poll for the
+// resulting DOM change instead of asserting immediately after dispatch.
+async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void> {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) throw new Error("waitFor: timed out");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+import { renderOnboarding } from "../src/views/onboarding.tsx";
+import { renderUnlock } from "../src/views/unlock.tsx";
+import { renderVault } from "../src/views/vault.tsx";
 import { buildTestContext } from "./helpers/context.ts";
 import { generateTestBundle } from "./helpers/bundle.ts";
 import { saveAccountBundle } from "../src/vault/account-bundle.ts";
@@ -65,6 +78,7 @@ describe("accessibility", () => {
 
     const deleteButton = [...container.querySelectorAll("button")].find((b) => b.textContent === "Delete")!;
     deleteButton.dispatchEvent(new Event("click", { bubbles: true }));
+    await waitFor(() => container.querySelector("#deleteConfirm") !== null);
 
     // The confirmation gate is a required text input, not a checkbox or a
     // color-coded button alone.
