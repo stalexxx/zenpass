@@ -22,6 +22,10 @@ export function loadConfig(env = process.env) {
     logLevel,
     databaseUrl: env.DATABASE_URL || (nodeEnv === 'development' ? 'postgres://pass:pass@127.0.0.1:5434/pass' : null),
     databaseSsl: env.DATABASE_SSL === 'true',
+    // Development-only, exact-origin CORS allowlist for the separately
+    // served local web bundle. Production must opt in explicitly; never use
+    // a wildcard origin for a bearer-token API.
+    webOrigin: env.WEB_ORIGIN || (nodeEnv === 'development' ? 'http://127.0.0.1:4173' : null),
     requestIdHeader: 'x-request-id',
     // ADR-0006 §3: process-wide OPAQUE server setup, base64. Required in
     // production; auto-generated ephemerally otherwise.
