@@ -1,6 +1,6 @@
 # Q01 release-gate report
 
-Status: **in progress — automated harness added; human and external evidence pending.**
+Status: **automated evidence complete for personal/internal use; external evidence remains required for public release.**
 
 | Gate | Evidence command | Automated scope | Current disposition |
 |---|---|---|---|
