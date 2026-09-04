@@ -7,6 +7,8 @@
   "scripts": {
     "build": "bun run --filter '*' --if-present build && cargo build --workspace",
     "test": "bun run --filter '*' --if-present test && cargo test --workspace",
+    "test:e2e": "bun test tests/e2e",
+    "test:security": "bun test tests/security",
     "lint": "bun run --filter '*' --if-present lint && cargo fmt --all -- --check",
     "check:boundaries": "bun scripts/check-boundaries.mjs"
   }

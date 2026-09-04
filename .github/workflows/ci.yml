@@ -20,3 +20,35 @@ jobs:
       - run: bun run test
       - run: bun run build
       - run: cargo fmt --all -- --check
+  q01-release-gates:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: pass
+          POSTGRES_USER: pass
+          POSTGRES_PASSWORD: pass
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U pass -d pass"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://pass:pass@127.0.0.1:5434/pass
+      Q01_E2E: "1"
+      Q01_DUMP_INSPECTION: "1"
+      Q01_BACKUP_RESTORE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+      - run: sudo apt-get update && sudo apt-get install --yes postgresql-client-16
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter @zkpm/backend migrate
+      - run: bun run test:e2e
+      - run: bun run test:security
+      - run: bun audit
