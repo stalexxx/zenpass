@@ -1,0 +1,7 @@
+{
+  "name": "@zkpm/extension-adapters",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "bun test" }
+}

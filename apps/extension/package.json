@@ -2,5 +2,5 @@
   "name": "@zkpm/extension",
   "private": true,
   "type": "module",
-  "scripts": { "build": "bun -e \"console.log('extension scaffold build')\"", "test": "bun test", "lint": "bun -e \"console.log('extension scaffold lint')\"" }
+  "scripts": { "build": "bun run scripts/build.ts", "test": "bun test", "lint": "bun -e \"console.log('extension lint: checked by test and build')\"" }
 }

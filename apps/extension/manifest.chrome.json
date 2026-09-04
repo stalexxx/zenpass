@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "ZKPM",
+  "version": "0.1.0",
+  "description": "Zero-knowledge password manager",
+  "action": { "default_popup": "popup.html" },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["https://*/*"],
+  "content_scripts": [{ "matches": ["https://*/*"], "js": ["content.js"], "run_at": "document_idle", "all_frames": true }],
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" }
+}
