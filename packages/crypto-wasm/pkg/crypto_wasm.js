@@ -22,6 +22,29 @@ export class WasmCrypto {
         wasm.wasmcrypto_close_session(this.__wbg_ptr, session);
     }
     /**
+     * @param {Uint8Array} password
+     * @param {bigint} reported_physical_memory_kib
+     * @param {string} account_id
+     * @param {string} vault_id
+     * @param {string} item_id
+     * @returns {any}
+     */
+    create_account_setup(password, reported_physical_memory_kib, account_id, vault_id, item_id) {
+        const ptr0 = passArray8ToWasm0(password, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(account_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(vault_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(item_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmcrypto_create_account_setup(this.__wbg_ptr, ptr0, len0, reported_physical_memory_kib, ptr1, len1, ptr2, len2, ptr3, len3);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Runtime-only setup path: creates fresh keys internally and returns only
      * encrypted wrappers plus canonical public metadata. No key bytes leave
      * WASM; this enables binding lifecycle tests without static fixtures.
@@ -145,6 +168,40 @@ export class WasmCrypto {
         const ptr7 = passArray8ToWasm0(wrapped_item_key, wasm.__wbindgen_malloc);
         const len7 = WASM_VECTOR_LEN;
         const ret = wasm.wasmcrypto_unlock_item_session(this.__wbg_ptr, ptr0, len0, ptr1, len1, reported_physical_memory_kib, ptr2, len2, ptr3, len3, ptr4, len4, account_key_version, vault_key_version, item_key_version, ptr5, len5, ptr6, len6, ptr7, len7);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] >>> 0;
+    }
+    /**
+     * @param {Uint8Array} recovery_key
+     * @param {string} account_id
+     * @param {string} vault_id
+     * @param {string} item_id
+     * @param {bigint} account_key_version
+     * @param {bigint} vault_key_version
+     * @param {bigint} item_key_version
+     * @param {Uint8Array} wrapped_account_key
+     * @param {Uint8Array} wrapped_vault_key
+     * @param {Uint8Array} wrapped_item_key
+     * @returns {number}
+     */
+    unlock_item_session_with_recovery(recovery_key, account_id, vault_id, item_id, account_key_version, vault_key_version, item_key_version, wrapped_account_key, wrapped_vault_key, wrapped_item_key) {
+        const ptr0 = passArray8ToWasm0(recovery_key, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(account_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(vault_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(item_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ptr4 = passArray8ToWasm0(wrapped_account_key, wasm.__wbindgen_malloc);
+        const len4 = WASM_VECTOR_LEN;
+        const ptr5 = passArray8ToWasm0(wrapped_vault_key, wasm.__wbindgen_malloc);
+        const len5 = WASM_VECTOR_LEN;
+        const ptr6 = passArray8ToWasm0(wrapped_item_key, wasm.__wbindgen_malloc);
+        const len6 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmcrypto_unlock_item_session_with_recovery(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, account_key_version, vault_key_version, item_key_version, ptr4, len4, ptr5, len5, ptr6, len6);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
