@@ -7,8 +7,19 @@ export type ContentToBackground =
   | { type: "lock" };
 
 export type BackgroundToContent =
-  | { type: "candidates"; candidates: LoginCandidate[] }
+  | { type: "offer-available" }
   | { type: "refused"; reason: RefusalReason }
   | { type: "fill"; username: string; password: string; totp?: string }
   | { type: "saved" }
+  | { type: "locked" };
+
+/** Popup is an extension-controlled surface; candidates never go to a page. */
+export type PopupToBackground =
+  | { type: "get-offer" }
+  | { type: "fill-selected"; itemId: string; userGesture: boolean }
+  | { type: "lock" };
+
+export type BackgroundToPopup =
+  | { type: "candidates"; candidates: LoginCandidate[] }
+  | { type: "refused"; reason: RefusalReason }
   | { type: "locked" };

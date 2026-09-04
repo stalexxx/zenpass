@@ -61,12 +61,27 @@ export async function requestCandidates(form: HTMLFormElement): Promise<Backgrou
   return send({ type: "offer", request: requestFor(form) });
 }
 
+let activeForm: HTMLFormElement | null = null;
 document.addEventListener("focusin", (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement)) return;
   const form = target.form;
-  if (form && passwordInput(form)) void requestCandidates(form);
+  if (form && passwordInput(form)) {
+    activeForm = form;
+    void requestCandidates(form);
+  }
 });
+
+const inboundRuntime = typeof browser !== "undefined" ? browser : typeof chrome !== "undefined" ? chrome : undefined;
+if (inboundRuntime) {
+  // Values arrive only from the extension background after a popup click.
+  (inboundRuntime as unknown as { runtime: { onMessage: { addListener(listener: (message: BackgroundToContent) => void): void } } }).runtime.onMessage.addListener((message) => {
+    if (message.type !== "fill" || !activeForm) return;
+    const username = usernameInput(activeForm);
+    const password = passwordInput(activeForm);
+    if (username && password) { setValue(username, message.username); setValue(password, message.password); }
+  });
+}
 
 document.addEventListener("submit", (event) => {
   const form = event.target;
