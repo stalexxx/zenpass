@@ -68,6 +68,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./certs:/certs:ro
+      - ../apps/web/dist:/srv/web:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:

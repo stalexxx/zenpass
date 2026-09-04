@@ -16,13 +16,24 @@
 #     personal/internal use only, not for public release.
 # Caddy's reverse_proxy does not log request bodies. No access-log block is
 # configured here, so encrypted request payloads are not recorded by Caddy.
+#
+# Everything under the API's own route prefixes goes to the backend; every
+# other request is served as a static file from the built web client
+# (/srv/web, bind-mounted from apps/web/dist — see docker-compose.prod.yml).
+# The two never collide: the API has no routes outside these prefixes, and
+# the web client has no client-side router (single index.html, no pushState
+# routes), so there is nothing else for either side to claim.
 {$CADDY_SITE_ADDRESS} {
 	encode zstd gzip
 	{$CADDY_TLS_DIRECTIVE}
 
-	reverse_proxy api:3000 {
+	@api path /health* /auth* /vaults* /devices*
+	reverse_proxy @api api:3000 {
 		header_up X-Forwarded-For {remote_host}
 		header_up X-Forwarded-Host {host}
 		header_up X-Forwarded-Proto {scheme}
 	}
+
+	root * /srv/web
+	file_server
 }
