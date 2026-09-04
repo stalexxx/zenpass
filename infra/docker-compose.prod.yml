@@ -1,0 +1,86 @@
+name: zkpm
+
+x-production-env: &production-env
+  env_file:
+    - path: .env.production
+      required: false
+
+services:
+  postgres:
+    image: postgres:16.8-alpine
+    restart: unless-stopped
+    <<: *production-env
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - database
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    command: ["bun", "src/migrate.mjs"]
+    restart: "no"
+    <<: *production-env
+    environment:
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - database
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    restart: unless-stopped
+    <<: *production-env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    networks:
+      - proxy
+      - database
+
+  caddy:
+    image: caddy:2.10.0-alpine
+    restart: unless-stopped
+    <<: *production-env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - proxy
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  proxy:
+  database:
+    internal: true

@@ -1,0 +1,12 @@
+# DOMAIN is supplied by infra/.env.production (for example, DOMAIN=<DOMAIN>).
+# Caddy's reverse_proxy does not log request bodies. No access-log block is
+# configured here, so encrypted request payloads are not recorded by Caddy.
+{$DOMAIN} {
+	encode zstd gzip
+
+	reverse_proxy api:3000 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
