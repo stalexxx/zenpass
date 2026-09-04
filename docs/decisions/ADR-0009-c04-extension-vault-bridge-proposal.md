@@ -1,8 +1,13 @@
-# ADR-0009: C04 extension vault bridge proposal
+# ADR-0009: C04 extension vault bridge proposal (proposal A)
 
 Status: **PROPOSED — pending human security review.** This is a design
 proposal only. It authorizes no implementation, contract change, or new
 cryptographic primitive.
+
+**This is proposal A.** [`ADR-0010`](./ADR-0010-c04-extension-vault-bridge-proposal-b.md)
+(proposal B) was drafted independently and in parallel for the same C04
+decision — see its intro for a summary of where the two converge and
+diverge. Only one of the two (or a synthesis) should be approved.
 
 ## Context
 
