@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-05T20:27:08.664Z",
+  "generatedAt": "2026-09-05T20:34:31.959Z",
   "results": [
     {
       "browser": "chromium",
-      "extensionId": "oncgmbnpmbiahahgamnjaolnnndadici",
+      "extensionId": "dcgkgpmlhobdmcijjhgbiabgffkiddle",
       "checks": [
         "extension service worker loaded",
         "page has no runtime authority",
@@ -19,5 +19,16 @@
         "empty password field"
       ]
     }
-  ]
+  ],
+  "httpsFixture": {
+    "verified": true,
+    "url": "https://127.0.0.1:59276"
+  },
+  "manifestHttpsOnly": {
+    "verified": true,
+    "networkGrants": [
+      "https://*/*",
+      "https://*/*"
+    ]
+  }
 }
