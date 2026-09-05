@@ -24,6 +24,8 @@ export interface FakeServerOptions {
    * published this exact revision, so a test can exercise the 409
    * KeyBundleConflict path (ADR-0011 G1) without a second real client. */
   seedKeyBundle?: { bundle: string; version: number };
+  /** Forces publication to return the approved CAS conflict response. */
+  forceKeyBundleConflict?: boolean;
 }
 
 /** A minimal in-memory fake of the auth+sync HTTP surface. Good enough for
@@ -72,6 +74,9 @@ export function createFakeFetch(options: FakeServerOptions = {}): typeof fetch {
       // enough for a UI-level test (this is a fake, not a contract-
       // conformance harness — that's apps/backend/test/account's job).
       const attempted = body as { bundle: string; version: number };
+      if (options.forceKeyBundleConflict && keyBundle) {
+        return json({ error: "key_bundle_conflict", currentVersion: keyBundle.version, attemptedVersion: attempted.version }, 409);
+      }
       if (!keyBundle) {
         if (attempted.version !== 1) {
           return json({ error: "key_bundle_conflict", currentVersion: null, attemptedVersion: attempted.version }, 409);

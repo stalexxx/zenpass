@@ -17,7 +17,6 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void
 
 describe("extension setup view", () => {
   test("shows the copyable accountId and publishes the key bundle on first use", async () => {
-    localStorage.clear();
     const { ctx, container } = await buildTestContext();
     // The extension-setup view reads getOrCreateAccountId() (the same
     // client-local id onboarding.tsx uses for both registration and the
@@ -29,7 +28,7 @@ describe("extension setup view", () => {
     expect(container.textContent).toContain(bundle.accountId);
 
     const publishButton = [...container.querySelectorAll("button")].find((b) => /publish key bundle/i.test(b.textContent ?? ""))!;
-    publishButton.dispatchEvent(new Event("click", { bubbles: true }));
+    publishButton.click();
 
     await waitFor(() => /published\./i.test(container.textContent ?? ""));
 
@@ -52,13 +51,12 @@ describe("extension setup view", () => {
       wrappedItemKey: new Uint8Array([1]),
       wrappedRecoveryKey: new Uint8Array([1]),
     });
-    localStorage.clear();
-    const { ctx, container } = await buildTestContext({ seedKeyBundle: { bundle: foreignBundle, version: 1 } });
+    const { ctx, container } = await buildTestContext({ seedKeyBundle: { bundle: foreignBundle, version: 1 }, forceKeyBundleConflict: true });
     await generateTestBundle(ctx, getOrCreateAccountId());
     renderExtensionSetup(container, ctx);
 
     const publishButton = [...container.querySelectorAll("button")].find((b) => /publish key bundle/i.test(b.textContent ?? ""))!;
-    publishButton.dispatchEvent(new Event("click", { bubbles: true }));
+    publishButton.click();
 
     await waitFor(() => /already published/i.test(container.textContent ?? ""));
 
@@ -70,7 +68,6 @@ describe("extension setup view", () => {
   });
 
   test("copy button writes the accountId to the clipboard", async () => {
-    localStorage.clear();
     const { ctx, container } = await buildTestContext();
     const { bundle } = await generateTestBundle(ctx, getOrCreateAccountId());
     let written = "";
@@ -80,7 +77,7 @@ describe("extension setup view", () => {
     });
     renderExtensionSetup(container, ctx);
     const copyButton = [...container.querySelectorAll("button")].find((b) => /copy account id/i.test(b.textContent ?? ""))!;
-    copyButton.dispatchEvent(new Event("click", { bubbles: true }));
+    copyButton.click();
     await waitFor(() => written.length > 0);
     expect(written).toBe(bundle.accountId);
   });
