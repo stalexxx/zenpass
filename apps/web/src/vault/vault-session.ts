@@ -33,6 +33,31 @@ export class VaultSession {
   private clipboardTimer: ReturnType<typeof setTimeout> | null = null;
   selectedItemId: Id | null = null;
 
+  /** Monotonic token bumped by `lock()` and by every unlock (a fresh
+   * session — whether re-unlocking the same account or switching to a
+   * different one). Every async method that writes decrypted data into
+   * `itemCache` (or returns cached data) captures this before its first
+   * `await` and re-checks it, via `isGenerationCurrent`, immediately
+   * before every subsequent touch of the cache. `lock()` clears the
+   * cache synchronously, but an operation already in flight when
+   * `lock()` runs would otherwise resume afterwards and unconditionally
+   * repopulate it with plaintext (GitHub issue #5) — this token is what
+   * lets a resumed operation notice its session ended and drop the
+   * write instead. It intentionally does *not* gate
+   * `sync.enqueueEdit`/`sync.resolveConflict`: the encrypted mutation
+   * queue is durable state that must still be persisted even if the
+   * session that produced it has since locked — only the plaintext
+   * cache write/return path is invalidated. */
+  private generation = 0;
+
+  /** True only if no `lock()`/unlock has happened since `generation` was
+   * captured, and the session is (still) unlocked. Call immediately
+   * before every plaintext cache write or read that follows an
+   * `await`. */
+  private isGenerationCurrent(generation: number): boolean {
+    return generation === this.generation && this.session !== null;
+  }
+
   constructor(
     private readonly client: CryptoWorkerClient,
     private readonly repo: LocalRepository,
@@ -48,6 +73,7 @@ export class VaultSession {
   }
 
   async unlockWithPassword(bundle: AccountBundle, password: Uint8Array, reportedPhysicalMemoryKiB = 262_144n): Promise<void> {
+    this.generation += 1;
     this.session = await this.client.unlockItemSession({
       password,
       kdfParametersCbor: bundle.kdfParametersCbor,
@@ -67,6 +93,7 @@ export class VaultSession {
   }
 
   async unlockWithRecovery(bundle: AccountBundle, recoveryKey: Uint8Array): Promise<void> {
+    this.generation += 1;
     this.session = await this.client.unlockItemSessionWithRecovery({
       recoveryKey,
       accountId: bundle.accountId,
@@ -85,8 +112,19 @@ export class VaultSession {
 
   private async loadAllItemsIntoMemory(): Promise<void> {
     if (this.session === null || !this.bundle) return;
-    const records = await this.repo.listItems(this.bundle.vaultId);
+    // Captured before any `await`: `this.session`/`this.bundle` may be
+    // cleared by a concurrent `lock()` (or replaced by a concurrent
+    // unlock) while this method is suspended below, so every subsequent
+    // line uses these locals instead of re-reading `this.session`/
+    // `this.bundle` — and `isGenerationCurrent(generation)` gates every
+    // write into `itemCache`/`deletedLocally`.
+    const generation = this.generation;
+    const session = this.session;
+    const bundle = this.bundle;
+    const records = await this.repo.listItems(bundle.vaultId);
+    if (!this.isGenerationCurrent(generation)) return;
     for (const record of records) {
+      if (!this.isGenerationCurrent(generation)) return;
       this.revisionCache.set(record.itemId, record.revision);
       if (record.deleted) {
         this.deletedLocally.add(record.itemId);
@@ -94,8 +132,9 @@ export class VaultSession {
       }
       try {
         const plaintext = await this.client.openItemPayload(
-          this.session, this.bundle.accountId, this.bundle.vaultId, record.itemId, KEY_VERSION, decodeB64(record.ciphertext),
+          session, bundle.accountId, bundle.vaultId, record.itemId, KEY_VERSION, decodeB64(record.ciphertext),
         );
+        if (!this.isGenerationCurrent(generation)) return;
         this.itemCache.set(record.itemId, decodeItemData(plaintext));
       } catch {
         // A record that fails to decrypt/parse (corrupt, wrong envelope
@@ -105,6 +144,7 @@ export class VaultSession {
         // deliberately logs nothing.
       }
     }
+    if (!this.isGenerationCurrent(generation)) return;
     // A create/edit is durably queued (LocalRepository.enqueueMutation)
     // *before* any network call — see SyncEngine.enqueueEdit — but only
     // lands in the confirmed `items` store once the server accepts it
@@ -117,18 +157,22 @@ export class VaultSession {
     // ciphertext is safely persisted in the queue. CONFLICT entries are
     // deliberately excluded — those need explicit caller resolution
     // (ctx.vault.decryptConflict/resolveConflict), not a plain overlay.
-    for (const entry of await this.repo.listQueuedMutations()) {
+    const queued = await this.repo.listQueuedMutations();
+    if (!this.isGenerationCurrent(generation)) return;
+    for (const entry of queued) {
+      if (!this.isGenerationCurrent(generation)) return;
       if (entry.state === "CONFLICT") continue;
       const { mutation } = entry;
-      if (mutation.vaultId !== this.bundle.vaultId) continue;
+      if (mutation.vaultId !== bundle.vaultId) continue;
       if (mutation.deleted) {
         this.deletedLocally.add(mutation.itemId);
         continue;
       }
       try {
         const plaintext = await this.client.openItemPayload(
-          this.session, this.bundle.accountId, this.bundle.vaultId, mutation.itemId, KEY_VERSION, decodeB64(mutation.ciphertext),
+          session, bundle.accountId, bundle.vaultId, mutation.itemId, KEY_VERSION, decodeB64(mutation.ciphertext),
         );
+        if (!this.isGenerationCurrent(generation)) return;
         this.itemCache.set(mutation.itemId, decodeItemData(plaintext));
         this.deletedLocally.delete(mutation.itemId);
       } catch {
@@ -144,6 +188,13 @@ export class VaultSession {
     try {
       if (this.session !== null) await this.client.lock();
     } finally {
+      // Bumped first (and unconditionally, even if `this.client.lock()`
+      // above threw): any save/load/resolveConflict already in flight
+      // captured the old generation before its first `await` and will
+      // see this mismatch the next time it checks, so it drops its
+      // plaintext cache write instead of repopulating the cache this
+      // block is about to clear (GitHub issue #5).
+      this.generation += 1;
       this.session = null;
       this.bundle = null;
       this.itemCache.clear();
@@ -165,7 +216,13 @@ export class VaultSession {
     };
   }
 
+  /** `itemCache` should already be empty post-lock (`lock()` clears it
+   * synchronously), but this defensively refuses to surface anything
+   * while locked in case a stale in-flight write (already dropped by its
+   * own generation check) raced this read, or any other residual state
+   * survives. */
   private listVisible(): SearchEntry[] {
+    if (this.session === null) return [];
     const entries: SearchEntry[] = [];
     for (const [itemId, data] of this.itemCache) {
       if (this.deletedLocally.has(itemId)) continue;
@@ -182,7 +239,10 @@ export class VaultSession {
     return searchItems(this.listVisible(), query);
   }
 
+  /** See `listVisible`'s note: defensively refuses cached data while
+   * locked, even though the cache should already be empty. */
   getItemData(itemId: Id): VaultItemData | null {
+    if (this.session === null) return null;
     if (this.deletedLocally.has(itemId)) return null;
     return this.itemCache.get(itemId) ?? null;
   }
@@ -195,11 +255,21 @@ export class VaultSession {
   /** Validates, encrypts, and queues a create/edit. Returns the itemId
    * (freshly generated for a create). Updates the in-memory cache
    * optimistically so the UI reflects the edit immediately, ahead of the
-   * sync engine actually pushing it. */
+   * sync engine actually pushing it.
+   *
+   * The encrypted mutation is always sealed and enqueued (durable,
+   * ciphertext-only work that must survive a concurrent `lock()`), but
+   * the optimistic plaintext cache write at the end is skipped if the
+   * session generation captured before this method's first `await`
+   * no longer matches — i.e. `lock()` (or a re-unlock/account switch)
+   * ran while `sealItemPayload`/`enqueueEdit` was in flight. Without
+   * this, a slow save completing after `lock()` would silently
+   * repopulate `itemCache` with plaintext post-lock (GitHub issue #5). */
   async saveItem(data: VaultItemData, itemId?: Id): Promise<Id> {
     const problems = validateItemData(data);
     if (problems.length > 0) throw new Error(problems.join(" "));
     const { session, bundle } = this.requireUnlocked();
+    const generation = this.generation;
     const id = itemId ?? crypto.randomUUID();
     const plaintext = encodeItemData(data);
     const envelope = await this.client.sealItemPayload(session, bundle.accountId, bundle.vaultId, id, KEY_VERSION, plaintext);
@@ -213,8 +283,10 @@ export class VaultSession {
       deleted: false,
     };
     await this.sync.enqueueEdit(mutation);
-    this.itemCache.set(id, data);
-    this.deletedLocally.delete(id);
+    if (this.isGenerationCurrent(generation)) {
+      this.itemCache.set(id, data);
+      this.deletedLocally.delete(id);
+    }
     return id;
   }
 
@@ -310,9 +382,16 @@ export class VaultSession {
 
   /** Resolves a conflict by re-sealing `resolution` as a fresh mutation
    * based on the current server revision, per SyncEngine.resolveConflict's
-   * contract (new mutationId, baseRevision = conflict.current.revision). */
+   * contract (new mutationId, baseRevision = conflict.current.revision).
+   *
+   * As with `saveItem`: the encrypted mutation is always sealed and
+   * handed to `sync.resolveConflict` (durable ciphertext work that must
+   * survive a concurrent `lock()`), but the optimistic plaintext cache
+   * write is skipped if the generation captured before the first
+   * `await` no longer matches. */
   async resolveConflict(conflict: Conflict, resolution: VaultItemData): Promise<void> {
     const { session, bundle } = this.requireUnlocked();
+    const generation = this.generation;
     const problems = validateItemData(resolution);
     if (problems.length > 0) throw new Error(problems.join(" "));
     const envelope = await this.client.sealItemPayload(
@@ -328,8 +407,10 @@ export class VaultSession {
       deleted: false,
     };
     await this.sync.resolveConflict(conflict.mutationId, newMutation);
-    this.itemCache.set(conflict.current.itemId, resolution);
-    this.deletedLocally.delete(conflict.current.itemId);
+    if (this.isGenerationCurrent(generation)) {
+      this.itemCache.set(conflict.current.itemId, resolution);
+      this.deletedLocally.delete(conflict.current.itemId);
+    }
   }
 
   /** Re-syncs local view state after a successful push/pull cycle (the
