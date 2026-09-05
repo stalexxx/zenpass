@@ -1,6 +1,77 @@
 import type { Id, ItemRecord, Mutation } from "./types.ts";
 import type { MutationSyncState } from "./sync-state-machine.ts";
 
+/**
+ * Thrown by a `LocalRepository.putItem` implementation when applying
+ * `incoming` over the record already stored for the same
+ * `(vaultId, itemId)` would let a dishonest server roll back or silently
+ * rewrite vault state (SEC-04 / GitHub issue #4). Callers (notably
+ * `SyncEngine.pull`) must treat this as a visible, fail-closed error — not
+ * swallow it and skip the record — so local data and the sync cursor are
+ * left exactly as they were before the rejected write.
+ */
+export class RecordConflictError extends Error {
+  constructor(
+    message: string,
+    public readonly reason: "revision-regression" | "revision-mismatch",
+  ) {
+    super(message);
+    this.name = "RecordConflictError";
+  }
+}
+
+function sameRecordBytes(a: ItemRecord, b: ItemRecord): boolean {
+  return (
+    a.ciphertext === b.ciphertext &&
+    a.envelopeVersion === b.envelopeVersion &&
+    a.deleted === b.deleted &&
+    a.createdAt === b.createdAt &&
+    a.updatedAt === b.updatedAt
+  );
+}
+
+/**
+ * Every `LocalRepository.putItem` implementation must call this (with the
+ * record currently stored for `incoming`'s `(vaultId, itemId)`, or `null`
+ * if there is none) before persisting `incoming`, and must not persist it
+ * if this throws. Enforces the two invariants achievable without changing
+ * the frozen `crypto-envelope/v1` AAD (see SEC-04's completion report for
+ * the residual gap this cannot close):
+ *
+ *  - Revision monotonicity: `incoming.revision` must never be lower than
+ *    `existing.revision` — rejects a server replaying an old, genuinely
+ *    valid ciphertext at a lower revision (including reviving a tombstoned
+ *    record, since `deleted` is part of the same rejected write).
+ *  - Same-revision integrity: if the revisions are equal, every field of
+ *    `incoming` must match `existing` exactly — rejects a same-revision
+ *    record whose ciphertext, `envelopeVersion`, or `deleted` flag was
+ *    altered in transit or by a dishonest server.
+ *
+ * This cannot detect a genuinely-valid *older* ciphertext relabeled by the
+ * server under a fabricated *higher* revision number: `crypto-envelope/v1`'s
+ * AAD binds `keyVersion` but not `revision`/`deleted`, so nothing in the
+ * envelope lets the client tell that case apart from a legitimate new
+ * write. Closing that gap requires an ADR-gated AAD change (out of scope
+ * here — see SEC-04's completion report).
+ */
+export function assertMonotonicPut(existing: ItemRecord | null, incoming: ItemRecord): void {
+  if (!existing) return;
+  if (incoming.revision < existing.revision) {
+    throw new RecordConflictError(
+      `putItem rejected: revision ${incoming.revision} regresses stored revision ${existing.revision} ` +
+        `for ${incoming.vaultId}/${incoming.itemId}`,
+      "revision-regression",
+    );
+  }
+  if (incoming.revision === existing.revision && !sameRecordBytes(existing, incoming)) {
+    throw new RecordConflictError(
+      `putItem rejected: revision ${incoming.revision} for ${incoming.vaultId}/${incoming.itemId} ` +
+        `is already stored with different content`,
+      "revision-mismatch",
+    );
+  }
+}
+
 /** A mutation sitting in the local offline queue, with its own sync state.
  * Everything on this shape is already ciphertext/metadata (Mutation, from
  * @pass/contracts, carries `ciphertext`/`envelopeVersion`, never
@@ -83,6 +154,8 @@ export class InMemoryLocalRepository implements LocalRepository {
   }
 
   async putItem(item: ItemRecord): Promise<void> {
+    const existing = this.items.get(this.key(item.vaultId, item.itemId)) ?? null;
+    assertMonotonicPut(existing, item);
     this.items.set(this.key(item.vaultId, item.itemId), item);
   }
 

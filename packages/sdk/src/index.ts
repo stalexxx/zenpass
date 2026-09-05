@@ -13,7 +13,7 @@ export { OPAQUE_CONTEXT, createWasmOpaqueClient } from "./opaque-client.ts";
 export type { OpaqueClient, OpaqueStartResult, OpaqueFinishResult } from "./opaque-client.ts";
 export { SyncEngine, retryDelayMs } from "./sync-state-machine.ts";
 export type { MutationSyncState, BackoffOptions, PushOutcome, PullOutcome } from "./sync-state-machine.ts";
-export { InMemoryLocalRepository } from "./repository.ts";
+export { InMemoryLocalRepository, RecordConflictError, assertMonotonicPut } from "./repository.ts";
 export type { LocalRepository, QueuedMutation } from "./repository.ts";
 export { encodeB64, decodeB64 } from "./b64.ts";
 export type { Session } from "./types.ts";

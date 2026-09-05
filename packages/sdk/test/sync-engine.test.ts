@@ -207,6 +207,117 @@ test("pull stops once the server repeats the same cursor with no new changes", a
   if (outcome.kind === "applied") expect(outcome.pagesApplied).toBe(2);
 });
 
+// SEC-04 (GitHub issue #4): SyncEngine.pull must reject a dishonest
+// server's replayed/rolled-back/misattributed records instead of
+// unconditionally applying them and advancing the cursor. See
+// docs/tasks/SEC-04.md.
+
+test("SEC-04: pull rejects a revision rollback and leaves local data/cursor unchanged", async () => {
+  const repo = new InMemoryLocalRepository();
+  await repo.putItem(itemRecord({ revision: 5, ciphertext: "b64:Y3VycmVudA" }));
+  await repo.setCursor("v1", "cursor-0");
+  const rollback = itemRecord({ revision: 2, ciphertext: "b64:b2xkLXJlcGxheQ" });
+  const api = new ApiClient({
+    baseUrl: "https://x",
+    fetchImpl: scriptedFetch([{ status: 200, body: { changes: [rollback], nextCursor: "cursor-evil" } }]),
+  });
+  api.setAccessToken("t");
+  const engine = new SyncEngine(api, repo);
+
+  const outcome = await engine.pull("v1");
+  expect(outcome.kind).toBe("error");
+  // Local data untouched: still the revision-5 record, not the replayed one.
+  expect(await repo.getItem("v1", "i1")).toEqual(itemRecord({ revision: 5, ciphertext: "b64:Y3VycmVudA" }));
+  // Cursor untouched: the server's proposed cursor never gets committed.
+  expect(await repo.getCursor("v1")).toBe("cursor-0");
+});
+
+test("SEC-04: pull rejects a record whose vaultId doesn't match the vault being synced", async () => {
+  const repo = new InMemoryLocalRepository();
+  await repo.setCursor("v1", "cursor-0");
+  const wrongVault = itemRecord({ vaultId: "v2" }); // server claims this belongs to a different vault
+  const api = new ApiClient({
+    baseUrl: "https://x",
+    fetchImpl: scriptedFetch([{ status: 200, body: { changes: [wrongVault], nextCursor: "cursor-1" } }]),
+  });
+  api.setAccessToken("t");
+  const engine = new SyncEngine(api, repo);
+
+  const outcome = await engine.pull("v1");
+  expect(outcome.kind).toBe("error");
+  expect(await repo.getItem("v1", "i1")).toBeNull();
+  expect(await repo.getItem("v2", "i1")).toBeNull(); // never written under either key
+  expect(await repo.getCursor("v1")).toBe("cursor-0");
+});
+
+test("SEC-04: pull rejects a same-revision record whose bytes differ from what is already stored", async () => {
+  const repo = new InMemoryLocalRepository();
+  await repo.putItem(itemRecord({ revision: 3, ciphertext: "b64:cmVhbA" }));
+  await repo.setCursor("v1", "cursor-0");
+  const tampered = itemRecord({ revision: 3, ciphertext: "b64:dGFtcGVyZWQ" }); // same revision, altered ciphertext
+  const api = new ApiClient({
+    baseUrl: "https://x",
+    fetchImpl: scriptedFetch([{ status: 200, body: { changes: [tampered], nextCursor: "cursor-1" } }]),
+  });
+  api.setAccessToken("t");
+  const engine = new SyncEngine(api, repo);
+
+  const outcome = await engine.pull("v1");
+  expect(outcome.kind).toBe("error");
+  expect(await repo.getItem("v1", "i1")).toEqual(itemRecord({ revision: 3, ciphertext: "b64:cmVhbA" }));
+  expect(await repo.getCursor("v1")).toBe("cursor-0");
+});
+
+test("SEC-04: pull rejects a tampered deleted flag replayed at the same revision (tombstone revival attempt)", async () => {
+  const repo = new InMemoryLocalRepository();
+  await repo.putItem(itemRecord({ revision: 7, deleted: true })); // client's genuinely deleted record
+  await repo.setCursor("v1", "cursor-0");
+  // Same revision, but deleted flipped back to false: since the AEAD's AAD
+  // doesn't bind `deleted`, the only defense available under the frozen
+  // envelope is same-revision byte equality, which this violates.
+  const revivalAttempt = itemRecord({ revision: 7, deleted: false });
+  const api = new ApiClient({
+    baseUrl: "https://x",
+    fetchImpl: scriptedFetch([{ status: 200, body: { changes: [revivalAttempt], nextCursor: "cursor-1" } }]),
+  });
+  api.setAccessToken("t");
+  const engine = new SyncEngine(api, repo);
+
+  const outcome = await engine.pull("v1");
+  expect(outcome.kind).toBe("error");
+  expect(await repo.getItem("v1", "i1")).toEqual(itemRecord({ revision: 7, deleted: true }));
+  expect(await repo.getCursor("v1")).toBe("cursor-0");
+});
+
+test(
+  "SEC-04 residual risk: a genuinely-valid old ciphertext replayed at a newly-claimed HIGHER revision is " +
+    "NOT rejected — the frozen crypto-envelope/v1 AAD doesn't bind `revision`, so this case is indistinguishable " +
+    "from a legitimate write without an ADR-gated AAD change (see docs/tasks/SEC-04.md)",
+  async () => {
+    const repo = new InMemoryLocalRepository();
+    const staleButValid = itemRecord({ revision: 2, ciphertext: "b64:c3RhbGUtYnV0LXZhbGlk" });
+    await repo.putItem(staleButValid);
+    await repo.setCursor("v1", "cursor-0");
+    // Same ciphertext bytes the server legitimately issued at revision 2,
+    // now relabeled at a fabricated higher revision (99). Nothing in the
+    // current envelope authenticates the revision number itself.
+    const relabeled = itemRecord({ revision: 99, ciphertext: "b64:c3RhbGUtYnV0LXZhbGlk" });
+    const api = new ApiClient({
+      baseUrl: "https://x",
+      fetchImpl: scriptedFetch([{ status: 200, body: { changes: [relabeled], nextCursor: "cursor-1" } }]),
+    });
+    api.setAccessToken("t");
+    const engine = new SyncEngine(api, repo);
+
+    const outcome = await engine.pull("v1");
+    // Documenting the accepted residual risk, not asserting it as desired
+    // behavior: this is the gap the task explicitly says to flag rather
+    // than attempt to close without a contract change.
+    expect(outcome.kind).toBe("applied");
+    expect(await repo.getItem("v1", "i1")).toEqual(relabeled);
+  },
+);
+
 test("APPLYING --page invalid--> ERROR: a failing page never advances the cursor past it", async () => {
   const repo = new InMemoryLocalRepository();
   const failingRepo: typeof repo = Object.assign(Object.create(Object.getPrototypeOf(repo)), repo, {
