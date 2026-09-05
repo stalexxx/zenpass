@@ -93,8 +93,7 @@ describe("popup-only selection with one-use capabilities", () => {
     setActive({ tabId: 8, origin: "https://example.test" });
     expect(await p.handlePopupMessage({ type: "fill-selected", requestId, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
     setActive(null);
-    const r2dbg = p.handlePopupMessage({ type: "request-candidates" }, popupSender); console.log("DBG r2", JSON.stringify(r2dbg), "locked", p.session.locked); const requestId2 = (r2dbg as { requestId: string }).requestId;
-    expect(await p.handlePopupMessage({ type: "fill-selected", requestId2, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
+    expect(p.handlePopupMessage({ type: "request-candidates" }, popupSender)).toEqual({ type: "locked" });
     expect(sent).toHaveLength(0);
   });
 
