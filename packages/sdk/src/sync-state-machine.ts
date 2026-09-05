@@ -171,6 +171,25 @@ export class SyncEngine {
       }
       try {
         for (const change of result.changes) {
+          // Vault-ownership check (SEC-04): the caller asked to pull
+          // `vaultId`; a dishonest server including a record for a
+          // different vault in this page must be rejected before it ever
+          // reaches putItem or the cursor advances — putItem's own
+          // revision/integrity checks (assertMonotonicPut) can't catch
+          // this because they only compare records already keyed to the
+          // same (vaultId, itemId).
+          if (change.vaultId !== vaultId) {
+            throw new Error(
+              `pull rejected: server returned item ${change.itemId} for vault ${change.vaultId} ` +
+                `while pulling vault ${vaultId}`,
+            );
+          }
+          // Revision monotonicity / tombstone-integrity checks live inside
+          // putItem itself (assertMonotonicPut, shared by every
+          // LocalRepository implementation) so they protect every caller,
+          // not just this loop. A rejection throws and is caught below —
+          // a visible ERROR outcome, never a silent skip — leaving local
+          // data and the cursor exactly where they were.
           await this.repo.putItem(change);
           itemsApplied += 1;
         }

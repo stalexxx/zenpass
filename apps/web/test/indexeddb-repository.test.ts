@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import "fake-indexeddb/auto";
 import { IndexedDBLocalRepository, deleteVaultDatabase } from "../src/db/indexeddb-repository.ts";
+import { ApiClient, RecordConflictError, SyncEngine } from "@zkpm/sdk";
 import type { ItemRecord, Mutation } from "@zkpm/sdk";
 
 const item: ItemRecord = {
@@ -109,4 +110,83 @@ describe("IndexedDBLocalRepository — durability across connection close/reopen
 beforeEach(() => {
   // Nothing to reset globally — every test uses a fresh namespace so
   // databases never collide across tests.
+});
+
+// SEC-04 (GitHub issue #4): IndexedDBLocalRepository.putItem must not
+// unconditionally replace an already-stored record. See docs/tasks/SEC-04.md.
+describe("IndexedDBLocalRepository — putItem rejects rollback/tamper (SEC-04)", () => {
+  test("putItem rejects a revision rollback and leaves the newer stored record untouched", async () => {
+    const repo = new IndexedDBLocalRepository(freshNamespace());
+    await repo.putItem(item); // revision 3
+    const rollback: ItemRecord = { ...item, revision: 2, ciphertext: "b64:b2xkLXJlcGxheQ" };
+    await expect(repo.putItem(rollback)).rejects.toThrow(RecordConflictError);
+    expect(await repo.getItem("v1", "i1")).toEqual(item);
+  });
+
+  test("putItem rejects a same-revision record with different ciphertext", async () => {
+    const repo = new IndexedDBLocalRepository(freshNamespace());
+    await repo.putItem(item);
+    const tampered: ItemRecord = { ...item, ciphertext: "b64:dGFtcGVyZWQ" };
+    await expect(repo.putItem(tampered)).rejects.toThrow(RecordConflictError);
+    expect(await repo.getItem("v1", "i1")).toEqual(item);
+  });
+
+  test("putItem rejects a same-revision tombstone-revival attempt (deleted flipped false->true mismatch)", async () => {
+    const repo = new IndexedDBLocalRepository(freshNamespace());
+    const tombstoned: ItemRecord = { ...item, deleted: true };
+    await repo.putItem(tombstoned);
+    const revivalAttempt: ItemRecord = { ...item, deleted: false }; // same revision, flipped tombstone
+    await expect(repo.putItem(revivalAttempt)).rejects.toThrow(RecordConflictError);
+    expect(await repo.getItem("v1", "i1")).toEqual(tombstoned);
+  });
+
+  test("putItem accepts a genuine revision advance", async () => {
+    const repo = new IndexedDBLocalRepository(freshNamespace());
+    await repo.putItem(item);
+    const next: ItemRecord = { ...item, revision: 4, ciphertext: "b64:bmV3", updatedAt: "2030-01-03T00:00:00Z" };
+    await repo.putItem(next);
+    expect(await repo.getItem("v1", "i1")).toEqual(next);
+  });
+});
+
+describe("IndexedDBLocalRepository — SyncEngine.pull integration (SEC-04)", () => {
+  function scriptedFetch(body: unknown): typeof fetch {
+    return (async () => new Response(JSON.stringify(body), { status: 200 })) as typeof fetch;
+  }
+
+  test("a real SyncEngine.pull against a real IndexedDBLocalRepository rejects a wrong-vault record and leaves cursor/data unchanged", async () => {
+    const repo = new IndexedDBLocalRepository(freshNamespace());
+    await repo.setCursor("v1", "cursor-0");
+    const wrongVault: ItemRecord = { ...item, vaultId: "v2" };
+    const api = new ApiClient({
+      baseUrl: "https://x",
+      fetchImpl: scriptedFetch({ changes: [wrongVault], nextCursor: "cursor-evil" }),
+    });
+    api.setAccessToken("t");
+    const engine = new SyncEngine(api, repo);
+
+    const outcome = await engine.pull("v1");
+    expect(outcome.kind).toBe("error");
+    expect(await repo.getItem("v1", "i1")).toBeNull();
+    expect(await repo.getItem("v2", "i1")).toBeNull();
+    expect(await repo.getCursor("v1")).toBe("cursor-0");
+  });
+
+  test("a real SyncEngine.pull against a real IndexedDBLocalRepository rejects a revision rollback and leaves cursor/data unchanged", async () => {
+    const repo = new IndexedDBLocalRepository(freshNamespace());
+    await repo.putItem(item); // revision 3
+    await repo.setCursor("v1", "cursor-0");
+    const rollback: ItemRecord = { ...item, revision: 1, ciphertext: "b64:b2xk" };
+    const api = new ApiClient({
+      baseUrl: "https://x",
+      fetchImpl: scriptedFetch({ changes: [rollback], nextCursor: "cursor-evil" }),
+    });
+    api.setAccessToken("t");
+    const engine = new SyncEngine(api, repo);
+
+    const outcome = await engine.pull("v1");
+    expect(outcome.kind).toBe("error");
+    expect(await repo.getItem("v1", "i1")).toEqual(item);
+    expect(await repo.getCursor("v1")).toBe("cursor-0");
+  });
 });
