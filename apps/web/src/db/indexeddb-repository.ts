@@ -7,6 +7,7 @@
 // "durable" means this interface's write call has resolved; IndexedDB
 // transactions resolving `oncomplete` is exactly that durability boundary
 // for a browser.
+import { assertMonotonicPut } from "@zkpm/sdk";
 import type {
   Id,
   ItemRecord,
@@ -91,10 +92,18 @@ export class IndexedDBLocalRepository implements LocalRepository {
     return (result as ItemRecord | undefined) ?? null;
   }
 
+  /** Inserts or replaces one server-confirmed ItemRecord, but only after
+   * `assertMonotonicPut` (SEC-04) confirms `item` doesn't regress or
+   * silently rewrite whatever is already stored for its `(vaultId,
+   * itemId)` — a rejection throws before the transaction issues any write,
+   * so a rejected record is never partially or fully persisted. */
   async putItem(item: ItemRecord): Promise<void> {
     const db = await this.db();
     const tx = db.transaction(ITEMS_STORE, "readwrite");
-    tx.objectStore(ITEMS_STORE).put(item);
+    const store = tx.objectStore(ITEMS_STORE);
+    const existing = (await reqToPromise(store.get([item.vaultId, item.itemId]))) as ItemRecord | undefined;
+    assertMonotonicPut(existing ?? null, item);
+    store.put(item);
     await txDone(tx);
   }
 
