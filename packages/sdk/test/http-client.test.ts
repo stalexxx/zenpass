@@ -217,6 +217,87 @@ test("listChanges passes cursor/limit as query params and returns the ChangePage
   expect(page).toEqual({ changes: [], nextCursor: "MA" });
 });
 
+test("getKeyBundle returns a typed 200 result", async () => {
+  const client = new ApiClient({
+    baseUrl: "https://api.example",
+    fetchImpl: fakeFetch(() => ({ status: 200, body: { bundle: "b64:AA==", version: 3 } })),
+  });
+  client.setAccessToken("t");
+  const result = await client.getKeyBundle();
+  expect(result).toEqual({ status: 200, keyBundle: { bundle: "b64:AA==", version: 3 } });
+});
+
+test("getKeyBundle returns { status: 404 } as a value, not an error, when unpublished", async () => {
+  const client = new ApiClient({
+    baseUrl: "https://api.example",
+    fetchImpl: fakeFetch(() => ({ status: 404, body: { error: "not_found", message: "x", requestId: "r" } })),
+  });
+  client.setAccessToken("t");
+  const result = await client.getKeyBundle();
+  expect(result).toEqual({ status: 404 });
+});
+
+test("getKeyBundle throws HttpError for any other non-2xx status", async () => {
+  const client = new ApiClient({
+    baseUrl: "https://api.example",
+    fetchImpl: fakeFetch(() => ({ status: 401, body: { error: "authentication_failed", message: "x", requestId: "r" } })),
+  });
+  client.setAccessToken("t");
+  await expect(client.getKeyBundle()).rejects.toThrow(HttpError);
+});
+
+test("putKeyBundle sends the KeyBundle body and returns 204 as a value", async () => {
+  let seenCall: Call | undefined;
+  const client = new ApiClient({
+    baseUrl: "https://api.example",
+    fetchImpl: fakeFetch((call) => {
+      seenCall = call;
+      return { status: 204, body: undefined };
+    }),
+  });
+  client.setAccessToken("t");
+  const result = await client.putKeyBundle({ bundle: "b64:AA==", version: 1 });
+  expect(seenCall?.method).toBe("PUT");
+  expect(seenCall?.url).toBe("https://api.example/account/key-bundle");
+  expect(seenCall?.body).toEqual({ bundle: "b64:AA==", version: 1 });
+  expect(result).toEqual({ status: 204 });
+});
+
+test("putKeyBundle returns a 409 KeyBundleConflict as a value, not a thrown error", async () => {
+  const client = new ApiClient({
+    baseUrl: "https://api.example",
+    fetchImpl: fakeFetch(() => ({
+      status: 409,
+      body: { error: "key_bundle_conflict", currentVersion: 2, attemptedVersion: 1 },
+    })),
+  });
+  client.setAccessToken("t");
+  const result = await client.putKeyBundle({ bundle: "b64:AA==", version: 1 });
+  expect(result).toEqual({
+    status: 409,
+    conflict: { error: "key_bundle_conflict", currentVersion: 2, attemptedVersion: 1 },
+  });
+});
+
+test("registerBearerSessionDevice sends the disjoint enrollmentMode branch, never publicKey", async () => {
+  let seenCall: Call | undefined;
+  const client = new ApiClient({
+    baseUrl: "https://api.example",
+    fetchImpl: fakeFetch((call) => {
+      seenCall = call;
+      return {
+        status: 201,
+        body: { deviceId: "dev-1", name: "Extension", createdAt: "2026-01-01T00:00:00Z", lastSeenAt: null, revokedAt: null },
+      };
+    }),
+  });
+  client.setAccessToken("t");
+  const device = await client.registerBearerSessionDevice("Extension");
+  expect(seenCall?.body).toEqual({ name: "Extension", enrollmentMode: "bearer-session-v1" });
+  expect("publicKey" in (seenCall?.body as object)).toBe(false);
+  expect(device.deviceId).toBe("dev-1");
+});
+
 test("b64 codec round-trips and matches the fixed b64: prefix", () => {
   const bytes = new Uint8Array([0, 1, 2, 253, 254, 255]);
   const encoded = encodeB64(bytes);
