@@ -38,13 +38,14 @@ test('migrations apply once and the second run is a no-op', async () => {
 
   // One migration statement count per migration file actually present under
   // db/migrations/ (currently 001_initial.sql, 002_auth_sessions_and_rate_limit.sql,
-  // and 003_sync.sql, ADR-0006 §8 / B05); only 001 creates the `accounts`
-  // table this pool's fake tracks specifically.
+  // 003_sync.sql (ADR-0006 §8 / B05), 004_c04_g1_device_enrollment.sql, and
+  // 005_c04_g1_session_provenance.sql (ADR-0011 G2)); only 001 creates the
+  // `accounts` table this pool's fake tracks specifically.
   assert.equal(pool.migrationStatements.length, 1);
   assert.equal(
     pool.calls.filter(({ sql }) => sql.startsWith('INSERT INTO schema_migrations')).length,
-    3
+    5
   );
-  assert.equal(pool.calls.filter(({ sql }) => sql === 'BEGIN').length, 3);
-  assert.equal(pool.calls.filter(({ sql }) => sql === 'COMMIT').length, 3);
+  assert.equal(pool.calls.filter(({ sql }) => sql === 'BEGIN').length, 5);
+  assert.equal(pool.calls.filter(({ sql }) => sql === 'COMMIT').length, 5);
 });

@@ -1,5 +1,5 @@
 import { decodeB64, encodeB64 } from "./b64.ts";
-import type { ChangePage, Conflict, Device, Id, ItemRecord, Mutation, Session } from "./types.ts";
+import type { ChangePage, Conflict, Device, Id, ItemRecord, KeyBundle, KeyBundleConflict, Mutation, Session } from "./types.ts";
 
 /** Thrown for any non-2xx HTTP response that isn't handled as a typed
  * result by a specific method (e.g. a 409 Conflict from mutateItem, which
@@ -39,6 +39,9 @@ export interface MutateConflictOutcome {
   status: 409;
   conflict: Conflict;
 }
+
+export type GetKeyBundleOutcome = { status: 200; keyBundle: KeyBundle } | { status: 404 };
+export type PutKeyBundleOutcome = { status: 204 } | { status: 409; conflict: KeyBundleConflict };
 
 /** Typed fetch-based HTTP client over the sync/v1 and auth/v1 API
  * surfaces (`@pass/contracts` request/response shapes). No code
@@ -166,8 +169,42 @@ export class ApiClient {
     })) as Device;
   }
 
+  /** ADR-0011 G2: enrolls a device with no proof-of-possession, authorized
+   * only by the caller's own bearer session (must be fresh from OPAQUE
+   * login and not yet bound to any device — the server enforces this and
+   * returns a generic 400 otherwise, per T09). */
+  async registerBearerSessionDevice(name: string): Promise<Device> {
+    return (await this.expectOk("POST", "/devices", {
+      body: { name, enrollmentMode: "bearer-session-v1" },
+    })) as Device;
+  }
+
   async revokeDevice(deviceId: Id): Promise<void> {
     await this.expectOk("POST", `/devices/${encodeURIComponent(deviceId)}/revoke`);
+  }
+
+  // --- Account key bundle (ADR-0011 G1) ---
+
+  /** Returns the account's published opaque key bundle, or `{ status: 404
+   * }` if the authenticated account has never published one — never
+   * fabricates an empty bundle. */
+  async getKeyBundle(): Promise<GetKeyBundleOutcome> {
+    const { status, body } = await this.request("GET", "/account/key-bundle");
+    if (status === 200) return { status: 200, keyBundle: body as KeyBundle };
+    if (status === 404) return { status: 404 };
+    throw new HttpError(status, body);
+  }
+
+  /** Publishes (or compare-and-swap replaces) the account's opaque key
+   * bundle. Returns the server's KeyBundleConflict as a value on 409 —
+   * never throws for it, matching `mutateItem`'s handling of its own
+   * expected conflict shape — so callers can distinguish "stop and ask the
+   * user to resolve" from a transport failure. */
+  async putKeyBundle(keyBundle: KeyBundle): Promise<PutKeyBundleOutcome> {
+    const { status, body } = await this.request("PUT", "/account/key-bundle", { body: keyBundle });
+    if (status === 204) return { status: 204 };
+    if (status === 409) return { status: 409, conflict: body as KeyBundleConflict };
+    throw new HttpError(status, body);
   }
 
   // --- Sync ---

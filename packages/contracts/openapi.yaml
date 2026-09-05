@@ -21,12 +21,15 @@ paths:
   /auth/logout:
     post: { operationId: logout, security: [{ bearerAuth: [] }], responses: { '204': { description: Logged out } } }
   /account/key-bundle:
-    get: { operationId: getKeyBundle, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/KeyBundle' } } }
+    get:
+      operationId: getKeyBundle
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { $ref: '#/components/responses/KeyBundle' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
     put:
       operationId: replaceKeyBundle
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/KeyBundle' } } } }
-      responses: { '204': { description: Replaced }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '204': { description: Replaced }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthorized' }, '409': { $ref: '#/components/responses/KeyBundleConflict' }, '413': { $ref: '#/components/responses/BadRequest' } }
   /account/recovery-reset:
     post: { operationId: recoveryReset, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecoveryResetRequest' } } } }, responses: { '204': { description: Reset complete }, '401': { $ref: '#/components/responses/Unauthorized' } } }
   /account/delete:
@@ -52,6 +55,7 @@ components:
     Conflict: { description: Revision conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Conflict' } } } }
     Session: { description: Session, content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } } }
     KeyBundle: { description: Opaque key bundle, content: { application/json: { schema: { $ref: '#/components/schemas/KeyBundle' } } } }
+    KeyBundleConflict: { description: Key-bundle publication revision conflict, content: { application/json: { schema: { $ref: '#/components/schemas/KeyBundleConflict' } } } }
   schemas:
     Id: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$' }
     DateTime: { type: string, format: date-time }
@@ -59,9 +63,15 @@ components:
     OpaqueRegisterRequest: { type: object, additionalProperties: false, required: [accountId, clientMessage], properties: { accountId: { $ref: '#/components/schemas/Id' }, clientMessage: { type: string, minLength: 1 } } }
     OpaqueLoginRequest: { type: object, additionalProperties: false, required: [accountId, clientMessage], properties: { accountId: { $ref: '#/components/schemas/Id' }, clientMessage: { type: string, minLength: 1 } } }
     Session: { type: object, additionalProperties: false, required: [accessToken, expiresAt], properties: { accessToken: { type: string, minLength: 1 }, expiresAt: { $ref: '#/components/schemas/DateTime' } } }
-    KeyBundle: { type: object, additionalProperties: false, required: [bundle, version], properties: { bundle: { type: string, pattern: '^b64:[A-Za-z0-9+/]+={0,2}$' }, version: { type: integer, minimum: 1 } } }
+    KeyBundle: { type: object, additionalProperties: false, required: [bundle, version], properties: { bundle: { type: string, pattern: '^b64:[A-Za-z0-9+/]+={0,2}$' }, version: { type: integer, minimum: 1, maximum: 2147483647 } } }
+    KeyBundleConflict: { type: object, additionalProperties: false, required: [error, currentVersion, attemptedVersion], properties: { error: { const: key_bundle_conflict }, currentVersion: { type: [integer, 'null'], minimum: 1, maximum: 2147483647 }, attemptedVersion: { type: integer, minimum: 1, maximum: 2147483647 } } }
     RecoveryResetRequest: { type: object, additionalProperties: false, required: [recoveryProof, keyBundle], properties: { recoveryProof: { type: string, minLength: 1 }, keyBundle: { $ref: '#/components/schemas/KeyBundle' } } }
-    DeviceCreate: { type: object, additionalProperties: false, required: [name, publicKey], properties: { name: { type: string, minLength: 1, maxLength: 128 }, publicKey: { type: string, minLength: 1 } } }
+    DeviceCreate:
+      oneOf:
+        - $ref: '#/components/schemas/DeviceCreateLegacyPublicKey'
+        - $ref: '#/components/schemas/DeviceCreateBearerSession'
+    DeviceCreateLegacyPublicKey: { type: object, additionalProperties: false, required: [name, publicKey], properties: { name: { type: string, minLength: 1, maxLength: 128 }, publicKey: { type: string, minLength: 1 } } }
+    DeviceCreateBearerSession: { type: object, additionalProperties: false, required: [name, enrollmentMode], properties: { name: { type: string, minLength: 1, maxLength: 128 }, enrollmentMode: { const: bearer-session-v1 } } }
     Device: { type: object, additionalProperties: false, required: [deviceId, name, createdAt, lastSeenAt, revokedAt], properties: { deviceId: { $ref: '#/components/schemas/Id' }, name: { type: string }, createdAt: { $ref: '#/components/schemas/DateTime' }, lastSeenAt: { type: [string, 'null'], format: date-time }, revokedAt: { type: [string, 'null'], format: date-time } } }
     ItemRecord: { type: object, additionalProperties: false, required: [itemId, vaultId, ciphertext, envelopeVersion, revision, deleted, createdAt, updatedAt], properties: { itemId: { $ref: '#/components/schemas/Id' }, vaultId: { $ref: '#/components/schemas/Id' }, ciphertext: { type: string, pattern: '^b64:[A-Za-z0-9+/]+={0,2}$' }, envelopeVersion: { const: crypto-envelope/v1 }, revision: { type: integer, minimum: 1 }, deleted: { type: boolean }, createdAt: { $ref: '#/components/schemas/DateTime' }, updatedAt: { $ref: '#/components/schemas/DateTime' } } }
     Mutation: { type: object, additionalProperties: false, required: [mutationId, itemId, vaultId, baseRevision, ciphertext, envelopeVersion, deleted], properties: { mutationId: { $ref: '#/components/schemas/Id' }, itemId: { $ref: '#/components/schemas/Id' }, vaultId: { $ref: '#/components/schemas/Id' }, baseRevision: { type: integer, minimum: 0 }, ciphertext: { type: string, pattern: '^b64:[A-Za-z0-9+/]+={0,2}$' }, envelopeVersion: { const: crypto-envelope/v1 }, deleted: { type: boolean } } }

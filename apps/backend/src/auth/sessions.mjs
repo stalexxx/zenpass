@@ -4,14 +4,22 @@ function hashToken(token) {
   return createHash('sha256').update(token).digest();
 }
 
-/** Issues a fresh, device-unbound session. The raw token is never stored. */
-export async function issueSession(pool, accountId, ttlSeconds) {
+/**
+ * Issues a fresh, device-unbound session. The raw token is never stored.
+ *
+ * `issuedVia` records durable provenance (ADR-0011 G2): `'opaque-login'`
+ * (the default) marks a session that just completed the OPAQUE login
+ * dance — the only kind eligible for bearer-session-v1 device enrollment.
+ * `rotateSession` below passes `'refresh'` for its internal reissue, which
+ * is never eligible regardless of any future device-binding change.
+ */
+export async function issueSession(pool, accountId, ttlSeconds, issuedVia = 'opaque-login') {
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
   const sessionId = randomUUID();
   await pool.query(
-    'INSERT INTO sessions (session_id, account_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)',
-    [sessionId, accountId, hashToken(token), expiresAt]
+    'INSERT INTO sessions (session_id, account_id, token_hash, expires_at, issued_via) VALUES ($1, $2, $3, $4, $5)',
+    [sessionId, accountId, hashToken(token), expiresAt, issuedVia]
   );
   return { sessionId, accountId, accessToken: token, expiresAt: expiresAt.toISOString() };
 }
@@ -23,7 +31,8 @@ export async function issueSession(pool, accountId, ttlSeconds) {
  */
 export async function resolveSession(pool, token) {
   const { rows } = await pool.query(
-    `SELECT s.session_id, s.account_id, s.device_id, s.expires_at, s.revoked_at, d.revoked_at AS device_revoked_at
+    `SELECT s.session_id, s.account_id, s.device_id, s.expires_at, s.revoked_at, s.issued_via,
+            d.revoked_at AS device_revoked_at
      FROM sessions s LEFT JOIN devices d ON d.device_id = s.device_id
      WHERE s.token_hash = $1`,
     [hashToken(token)]
@@ -47,7 +56,7 @@ export async function bindSessionToDevice(pool, sessionId, deviceId) {
  */
 export async function rotateSession(pool, session, ttlSeconds) {
   await pool.query('UPDATE sessions SET revoked_at = now() WHERE session_id = $1', [session.session_id]);
-  const next = await issueSession(pool, session.account_id, ttlSeconds);
+  const next = await issueSession(pool, session.account_id, ttlSeconds, 'refresh');
   await bindSessionToDevice(pool, next.sessionId, session.device_id);
   return next;
 }

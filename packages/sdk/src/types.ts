@@ -12,6 +12,9 @@ export type {
   ChangePage,
   Conflict,
   ApiError,
+  KeyBundle,
+  KeyBundleConflict,
+  DeviceCreate,
 } from "@pass/contracts";
 
 export interface Session {
