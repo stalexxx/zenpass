@@ -18,6 +18,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5000): Promise<void
 describe("extension setup view", () => {
   test("shows the copyable accountId and publishes the key bundle on first use", async () => {
     const { ctx, container } = await buildTestContext();
+    ctx.api.setAccessToken("test-token");
     // The extension-setup view reads getOrCreateAccountId() (the same
     // client-local id onboarding.tsx uses for both registration and the
     // bundle it creates) — match that here so the published bundle's own
@@ -52,6 +53,7 @@ describe("extension setup view", () => {
       wrappedRecoveryKey: new Uint8Array([1]),
     });
     const { ctx, container } = await buildTestContext({ seedKeyBundle: { bundle: foreignBundle, version: 1 }, forceKeyBundleConflict: true });
+    ctx.api.setAccessToken("test-token");
     await generateTestBundle(ctx, getOrCreateAccountId());
     renderExtensionSetup(container, ctx);
 
