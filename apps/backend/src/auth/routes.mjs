@@ -5,6 +5,8 @@ import { checkAndIncrement } from './rate-limit.mjs';
 import { issueSession, revokeSession, rotateSession } from './sessions.mjs';
 import { requireSession } from './authenticate.mjs';
 import { sendBadRequest, sendUnauthorized } from './responses.mjs';
+import { isValidAccountId } from './validation.mjs';
+import { admissionKey, createAdmissionLimiter } from './admission-limit.mjs';
 
 const OPAQUE_CONTEXT = Buffer.from('zkpm-opaque-v1');
 // Fixed by the pinned Ristretto255 suite (ADR-0003); used only to keep the
@@ -24,21 +26,32 @@ function sendJson(reply, statusCode, body) {
 
 export function registerAuthRoutes(app, { pool, ready, loginStateStore, config }) {
   const rateLimitOptions = { max: config.authRateLimitMax, windowSeconds: config.authRateLimitWindowSeconds };
+  // SEC-07: a coarse, cheap admission control shared by both routes, kept
+  // ahead of ensureAccount/checkAndIncrement below. See admission-limit.mjs.
+  const admissionLimiter = createAdmissionLimiter({
+    max: config.authAdmissionRateLimitMax,
+    windowMs: config.authAdmissionRateLimitWindowSeconds
+      ? config.authAdmissionRateLimitWindowSeconds * 1000
+      : undefined
+  });
 
   app.post('/auth/opaque/register', async (request, reply) => {
     const { accountId, clientMessage } = request.body ?? {};
     const message = decodeB64(clientMessage);
-    if (!accountId || !message) {
+    // SEC-07: reject a malformed accountId or clientMessage before any
+    // persistent write. This must stay routed through the same generic
+    // sendBadRequest body as every other rejection below so a malformed
+    // request is indistinguishable from an unknown/known-account one.
+    if (!isValidAccountId(accountId) || !message) {
       sendBadRequest(reply, request);
       return;
     }
 
-    // auth_rate_limits.account_id is a foreign key, and rate limiting must
-    // cover an account that doesn't have credentials yet (it's mid-
-    // registration), so the ledger row is created unconditionally here.
-    await ensureAccount(pool, accountId);
-    const withinLimit = await checkAndIncrement(pool, accountId, 'register', rateLimitOptions);
-    if (!withinLimit) {
+    // SEC-07: a coarse, IP-scoped admission check ahead of the durable
+    // per-account limiter and any persistent write, so raw request volume
+    // alone (many distinct synthetic accountIds) can't inflate
+    // accounts/auth_rate_limits.
+    if (!admissionLimiter.allow(admissionKey(request))) {
       sendBadRequest(reply, request);
       return;
     }
@@ -46,8 +59,23 @@ export function registerAuthRoutes(app, { pool, ready, loginStateStore, config }
     const { opaque, serverSetup } = await ready;
     let step;
     try {
+      // SEC-07: registrationStep parses and rejects a malformed message
+      // (wrong length/shape for either leg) internally; this call performs
+      // no I/O and must complete before any persistent write below.
       step = opaque.registrationStep(serverSetup, accountId, message);
     } catch {
+      sendBadRequest(reply, request);
+      return;
+    }
+
+    // auth_rate_limits.account_id is a foreign key, and rate limiting must
+    // cover an account that doesn't have credentials yet (it's mid-
+    // registration), so the ledger row is created unconditionally here --
+    // but only now that accountId grammar and OPAQUE message shape are
+    // both confirmed well-formed above (SEC-07).
+    await ensureAccount(pool, accountId);
+    const withinLimit = await checkAndIncrement(pool, accountId, 'register', rateLimitOptions);
+    if (!withinLimit) {
       sendBadRequest(reply, request);
       return;
     }
@@ -65,13 +93,38 @@ export function registerAuthRoutes(app, { pool, ready, loginStateStore, config }
   app.post('/auth/opaque/login', async (request, reply) => {
     const { accountId, clientMessage } = request.body ?? {};
     const message = decodeB64(clientMessage);
-    if (!accountId || !message) {
+    // SEC-07: reject a malformed accountId or clientMessage before any
+    // persistent write, via the same generic sendUnauthorized body used by
+    // every other rejection below.
+    if (!isValidAccountId(accountId) || !message) {
+      sendUnauthorized(reply, request);
+      return;
+    }
+
+    const hasPending = loginStateStore.hasPending(accountId);
+
+    // SEC-07: leg 1 (fresh KE1) has a length fixed by the pinned suite;
+    // validate it -- identically for a malformed request either way --
+    // before any persistent write. Leg 2's shape is verified by
+    // loginFinish below, once real per-account state already exists.
+    if (!hasPending && message.length !== KE1_LEN) {
+      sendUnauthorized(reply, request);
+      return;
+    }
+
+    // SEC-07: a coarse, IP-scoped admission check ahead of the durable
+    // per-account limiter and any persistent write, so raw request volume
+    // alone (many distinct synthetic accountIds) can't inflate
+    // accounts/auth_rate_limits.
+    if (!admissionLimiter.allow(admissionKey(request))) {
       sendUnauthorized(reply, request);
       return;
     }
 
     // Same FK/enumeration reasoning as registration above: the ledger row
-    // must exist before rate limiting an account that may not be registered.
+    // must exist before rate limiting an account that may not be
+    // registered -- but only now that accountId grammar and message shape
+    // are both confirmed well-formed above (SEC-07).
     await ensureAccount(pool, accountId);
     const withinLimit = await checkAndIncrement(pool, accountId, 'login', rateLimitOptions);
     if (!withinLimit) {
@@ -81,14 +134,8 @@ export function registerAuthRoutes(app, { pool, ready, loginStateStore, config }
 
     const { opaque, serverSetup } = await ready;
 
-    if (!loginStateStore.hasPending(accountId)) {
-      // Leg 1 (KE1 -> KE2). Length is validated before branching on account
-      // existence so a malformed KE1 fails identically either way.
-      if (message.length !== KE1_LEN) {
-        sendUnauthorized(reply, request);
-        return;
-      }
-
+    if (!hasPending) {
+      // Leg 1 (KE1 -> KE2).
       const credentialRecord = await getCredentialRecord(pool, accountId);
       if (!credentialRecord) {
         // Unknown account: respond with a same-shaped decoy KE2 rather than
