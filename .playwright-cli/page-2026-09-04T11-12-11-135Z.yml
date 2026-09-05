@@ -1,0 +1,10 @@
+- generic [active] [ref=f2e1]:
+  - main [ref=f2e2]:
+    - generic [ref=f2e16]:
+      - heading "Save your recovery key" [level=1] [ref=f2e17]
+      - paragraph [ref=f2e18]: Support cannot recover a lost master password without this recovery key. If you lose both, your data is permanently unrecoverable.
+      - paragraph [ref=f2e19]: Provisional format — pending final display-encoding decision (G-10); the underlying key is unaffected.
+      - generic "Recovery key" [ref=f2e20]: b407a0b7f7f3b04e056fa867104608170063bc2a453df31c4676128bc2f02f6c
+      - button "I've saved it — continue" [ref=f2e21] [cursor=pointer]
+  - status [ref=f2e14]: Creating your account...
+  - alert [ref=f2e15]

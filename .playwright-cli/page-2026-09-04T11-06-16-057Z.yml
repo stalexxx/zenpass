@@ -1,0 +1,15 @@
+- generic [active] [ref=f1e1]:
+  - main [ref=f1e2]:
+    - generic [ref=f1e3]:
+      - heading "Create your vault" [level=1] [ref=f1e4]
+      - paragraph [ref=f1e5]: Your master password never leaves this device. We cannot recover it for you.
+      - generic [ref=f1e6]: Email (local label only — not sent to the server)
+      - textbox "Email (local label only — not sent to the server)" [ref=f1e7]
+      - generic [ref=f1e8]: Master password
+      - textbox "Master password" [ref=f1e9]
+      - paragraph [ref=f1e10]: At least 12 characters. This is the only password you'll ever need to remember.
+      - generic [ref=f1e11]: Confirm master password
+      - textbox "Confirm master password" [ref=f1e12]
+      - button "Create vault" [ref=f1e13] [cursor=pointer]
+  - status [ref=f1e14]
+  - alert [ref=f1e15]
