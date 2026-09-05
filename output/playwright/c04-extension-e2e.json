@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-09-05T20:27:08.664Z",
+  "results": [
+    {
+      "browser": "chromium",
+      "extensionId": "oncgmbnpmbiahahgamnjaolnnndadici",
+      "checks": [
+        "extension service worker loaded",
+        "page has no runtime authority",
+        "locked popup",
+        "empty password field"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "checks": [
+        "extension profile loaded",
+        "page has no runtime authority",
+        "empty password field"
+      ]
+    }
+  ]
+}
