@@ -2,3 +2,4 @@ body { font: menu; margin: 0; min-width: 18rem; }
 main { padding: 1rem; }
 button { min-height: 2.5rem; }
 #choices { display: grid; gap: .5rem; margin-block: .75rem; }
+.note { color: dimgray; font-size: .8rem; margin-block: .5rem; }
