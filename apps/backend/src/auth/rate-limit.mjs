@@ -1,3 +1,11 @@
+import { cleanupStaleAuthState } from './cleanup.mjs';
+
+// SEC-07: opportunistic, low-probability sweep run inline with ordinary
+// traffic instead of a separate scheduled job (see cleanup.mjs). A
+// best-effort side effect: its failure must never fail the caller's real
+// rate-limit check.
+const CLEANUP_PROBABILITY = 0.02;
+
 // Durable, atomic fixed-window login throttling (ADR-0005 §3). No IP
 // address, password, token, or OPAQUE message is stored.
 export async function checkAndIncrement(pool, accountId, scope, { max, windowSeconds }) {
@@ -11,5 +19,8 @@ export async function checkAndIncrement(pool, accountId, scope, { max, windowSec
      RETURNING count`,
     [accountId, scope, windowStart]
   );
+  if (Math.random() < CLEANUP_PROBABILITY) {
+    cleanupStaleAuthState(pool).catch(() => {});
+  }
   return rows[0].count <= max;
 }
