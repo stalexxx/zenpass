@@ -11,3 +11,15 @@ export interface Mutation { mutationId: Id; itemId: Id; vaultId: Id; baseRevisio
 export interface ChangePage { changes: ItemRecord[]; nextCursor: string | null; }
 export interface Conflict { error: "conflict"; mutationId: Id; current: ItemRecord; attempted: Mutation; }
 export interface ApiError { error: string; message: string; requestId: string; }
+
+/** ADR-0011 G1: `/account/key-bundle` PUT 409, distinct from sync's `Conflict` (which embeds an `ItemRecord`). */
+export interface KeyBundleConflict { error: "key_bundle_conflict"; currentVersion: number | null; attemptedVersion: number; }
+
+export interface KeyBundle { bundle: string; version: number; }
+
+/** ADR-0011 G2: the legacy branch requires a stored `publicKey` (no proof-of-possession is implemented for it);
+ * the `bearer-session-v1` branch trades that for an explicit bearer-only, revocable enrollment with no key material.
+ * The two branches are disjoint — a request must match exactly one. */
+export type DeviceCreate =
+  | { name: string; publicKey: string }
+  | { name: string; enrollmentMode: "bearer-session-v1" };
