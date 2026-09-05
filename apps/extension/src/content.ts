@@ -22,7 +22,12 @@ function usernameInput(form: HTMLFormElement): HTMLInputElement | null {
   return [...form.querySelectorAll<HTMLInputElement>('input[autocomplete="username"], input[type="email"], input[type="text"]')].find(visible) ?? null;
 }
 
-function requestFor(form: HTMLFormElement) {
+/**
+ * Bounded, non-secret offer metadata only (ADR-0011 "Page → content" and
+ * "Content → background" rows). No field values, no credentials, and no
+ * submit capture ever leave the page through this script.
+ */
+function offerMetadata(form: HTMLFormElement) {
   const password = passwordInput(form);
   const username = usernameInput(form);
   return {
@@ -41,55 +46,39 @@ function setValue(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-/**
- * The UI that chooses a candidate lives in the extension popup. Content code
- * receives values only after that explicit selection is forwarded as a click.
- */
-export async function fillSelected(form: HTMLFormElement, itemId: string, userGesture: boolean): Promise<boolean> {
-  const username = usernameInput(form);
-  const password = passwordInput(form);
-  if (!username || !password) return false;
-  const response = await send({ type: "fill", request: requestFor(form), itemId, userGesture });
-  if (response.type !== "fill") return false;
-  setValue(username, response.username);
-  setValue(password, response.password);
-  return true;
-}
-
-/** Offer metadata only; no field values leave the background before selection. */
-export async function requestCandidates(form: HTMLFormElement): Promise<BackgroundToContent> {
-  return send({ type: "offer", request: requestFor(form) });
-}
-
 let activeForm: HTMLFormElement | null = null;
+
 document.addEventListener("focusin", (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement)) return;
   const form = target.form;
   if (form && passwordInput(form)) {
     activeForm = form;
-    void requestCandidates(form);
+    void send({ type: "offer", request: offerMetadata(form) }).catch(() => undefined);
   }
+});
+
+// Navigation invalidates any pending offer; cancel it immediately.
+window.addEventListener("pagehide", () => {
+  void send({ type: "cancel-offer" }).catch(() => undefined);
 });
 
 const inboundRuntime = typeof browser !== "undefined" ? browser : typeof chrome !== "undefined" ? chrome : undefined;
 if (inboundRuntime) {
-  // Values arrive only from the extension background after a popup click.
+  // Values arrive only from the trusted background, targeted at this exact
+  // document via a one-use capability. The bound origin, top frame,
+  // HTTPS scheme, visible/enabled/editable fields, and same-origin form
+  // action are all rechecked immediately before assignment.
   (inboundRuntime as unknown as { runtime: { onMessage: { addListener(listener: (message: BackgroundToContent) => void): void } } }).runtime.onMessage.addListener((message) => {
     if (message.type !== "fill" || !activeForm) return;
-    const username = usernameInput(activeForm);
-    const password = passwordInput(activeForm);
-    if (username && password) { setValue(username, message.username); setValue(password, message.password); }
+    if (window.top !== window || location.origin !== message.origin || location.protocol !== "https:") return;
+    const form = activeForm;
+    if (!form.action || new URL(form.action, location.href).origin !== location.origin) return;
+    const username = usernameInput(form);
+    const password = passwordInput(form);
+    if (username && password && !username.disabled && !password.disabled && !username.readOnly && !password.readOnly) {
+      setValue(username, message.username);
+      setValue(password, message.password);
+    }
   });
 }
-
-document.addEventListener("submit", (event) => {
-  const form = event.target;
-  if (!(form instanceof HTMLFormElement) || window.top !== window) return;
-  const username = usernameInput(form);
-  const password = passwordInput(form);
-  if (!username || !password) return;
-  // The background refuses to retain this until a future encrypted, visible
-  // save/update flow exists. This message creates no persistence by itself.
-  void send({ type: "save-submitted", origin: location.origin, username: username.value, password: password.value });
-});

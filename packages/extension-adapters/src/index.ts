@@ -25,7 +25,10 @@ export type RefusalReason =
   | "cross-origin-form"
   | "hidden-field"
   | "no-exact-origin-match"
-  | "confirmation-required";
+  | "confirmation-required"
+  | "stale-capability"
+  | "document-targeting-unsupported"
+  | "unlock-unavailable";
 
 export type FillDecision =
   | { allowed: true; candidates: LoginCandidate[] }
@@ -56,3 +59,30 @@ export function decideFill(request: PageRequest, candidates: readonly LoginCandi
 export function confirmFill(userGesture: boolean): { allowed: true } | { allowed: false; reason: RefusalReason } {
   return userGesture ? { allowed: true } : { allowed: false, reason: "confirmation-required" };
 }
+
+/**
+ * Candidate/field source for the background. Until C04-G1 lands the
+ * independent OPAQUE unlock and key-bundle opening, no production
+ * implementation exists: the extension stays locked and refuses offers.
+ * This interface is the seam G1 will implement inside the trusted
+ * background; it must never be satisfiable from a content script or page.
+ */
+export interface VaultCandidateSource {
+  /** Exact-origin candidate membership is decided by the background. */
+  candidatesFor(pageOrigin: string): readonly LoginCandidate[];
+  /** Returns the fill fields for one selected candidate, or null. */
+  fieldsFor(itemId: string, pageOrigin: string): { username: string; password: string; totp?: string } | null;
+}
+
+export { parseContentMessage, parsePopupMessage, type ValidatedContentMessage, type ValidatedPopupMessage } from "./schema.ts";
+export { trustedContentSender, trustedPopupSender, type RuntimeSender, type TrustedContentSender } from "./sender.ts";
+export {
+  FillCapabilityStore,
+  MAX_CAPABILITY_LIFETIME_MS,
+  type CapabilityConsumeFailure,
+  type CapabilityConsumeResult,
+  type FillCapabilityBinding,
+  type FillCapabilityContext,
+  type RandomBytes,
+} from "./capability.ts";
+export { SessionStateMachine, POPUP_INACTIVITY_LIMIT_MS, type LockReason } from "./session-state.ts";
