@@ -46,7 +46,7 @@ describe("production default: locked, no vault source", () => {
   test("every content offer is refused and no candidates exist", () => {
     const { p } = policy(null);
     expect(p.handleContentMessage(offerMessage, contentSender)).toEqual({ type: "refused", reason: "locked" });
-    expect(p.handlePopupMessage({ type: "request-candidates" }, popupSender)).toEqual({ type: "locked" });
+    const requestId2 = (p.handlePopupMessage({ type: "request-candidates" }, popupSender) as { requestId: string }).requestId;
     expect(p.handlePopupMessage({ type: "get-state" }, popupSender)).toEqual({ type: "state", locked: true, unlockAvailable: false });
   });
 });
@@ -93,7 +93,8 @@ describe("popup-only selection with one-use capabilities", () => {
     setActive({ tabId: 8, origin: "https://example.test" });
     expect(await p.handlePopupMessage({ type: "fill-selected", requestId, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
     setActive(null);
-    expect(p.handlePopupMessage({ type: "request-candidates" }, popupSender)).toEqual({ type: "locked" });
+    const requestId2 = (p.handlePopupMessage({ type: "request-candidates" }, popupSender) as { requestId: string }).requestId;
+    expect(await p.handlePopupMessage({ type: "fill-selected", requestId: requestId2, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
     expect(sent).toHaveLength(0);
   });
 
