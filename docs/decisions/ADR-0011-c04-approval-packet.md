@@ -1,6 +1,6 @@
 # ADR-0011: C04 approval packet and recommended synthesis
 
-Status: **PROPOSED — pending human security review.**
+Status: **APPROVED by the human security reviewer — 2026-09-05.**
 
 Date: 2026-09-05. Reviewed baseline: `95846a9`.
 Task: [C04-ADR-DRAFT](../tasks/C04-ADR-DRAFT.md), preparing
@@ -8,8 +8,10 @@ Task: [C04-ADR-DRAFT](../tasks/C04-ADR-DRAFT.md), preparing
 
 This proposal combines [ADR-0009](./ADR-0009-c04-extension-vault-bridge-proposal.md)
 and [ADR-0010](./ADR-0010-c04-extension-vault-bridge-proposal-b.md).
-Neither original proposal is approved or superseded by this document's creation.
-No implementation, contract amendment, migration, or release is authorized yet.
+ADR-0011 is the selected synthesis; ADR-0009 and ADR-0010 remain historical
+alternatives and are not implementation authority. This approval authorizes the
+bounded contract and implementation work explicitly described below. It does not
+authorize unrelated crypto, recovery, WebAuthn, release, or contract rewrites.
 
 ## Decision requested
 
@@ -17,9 +19,10 @@ Recommend the hardened message boundary from proposal A and the background-local
 crypto host from proposal B, with online-only extension operation initially.
 Approve the architectural direction D1–D6 and the concrete candidate contract
 decisions G1/G2 below. **Direction approval alone must not mark C04 READY:**
-G1/G2 require explicit human approval before their normative files or code change.
-This distinction prevents an approval of the overall diagram from silently
-approving an undefined bundle format or device credential scheme.
+G1/G2 were approved with this ADR. The integrator must still create bounded
+tasks, preserve prior contract snapshots, and verify the listed tests before
+merging implementation. This distinction prevents implementation scope from
+expanding beyond the reviewed bundle or device decisions.
 
 | Decision | Recommended disposition | Consequence the reviewer accepts |
 |---|---|---|
@@ -246,10 +249,10 @@ The candidate specification for human approval is:
   keys, b64 variants, ID mismatch, oversized wrappers/KDF, two writers, lost
   acknowledgement, missing bundle, malformed server errors and account isolation.
 
-G1 remains UNAPPROVED. The reviewer must approve this exact candidate or request
-changes, including the API correction and freshness limitation. Transcribing
-approved text into normative contract files and generating fixtures is a bounded
-post-approval task, not permission to invent a different serialization in code.
+G1 is APPROVED, including its API correction and first-enrollment replay residual.
+Transcribing this text into normative contract files and generating fixtures is a
+bounded post-approval task; implementation may not substitute another
+serialization or relax the stated limits.
 
 ## G2: Honest device enrollment decision required
 
@@ -280,8 +283,8 @@ material. A lost enrollment acknowledgement locks the client; another independen
 login may enroll again rather than inventing an unreviewed device-reuse protocol.
 The existing server-side cascade and refresh eligibility remain unchanged.
 
-This explicit schema union, its new mode semantics, and the forward migration
-require human approval and a retained contract revision. Negative cases include
+G2 is APPROVED, including its explicit schema union, bearer-only semantics and
+forward migration. It requires a retained contract revision. Negative cases include
 anonymous/expired/revoked/bound-session enrollment, mixed payloads, concurrent
 requests, account isolation, failed binding rollback, refresh token replay and
 second-client revocation of the created extension device. Do not rewrite old
@@ -341,31 +344,32 @@ approval, review each worker's diff and checks, and merge only passing reviewed
 work. R01 routing/CORS deployment wiring for a new account route is a separate
 explicit infra task. H02/public release gates remain in force.
 
-## Human decision record — unfilled
+## Human decision record
 
 | Field | Value |
 |---|---|
-| Reviewer / date | Pending |
-| Decision | Pending: approve D1–D6 and exact G1/G2 candidates / approve direction only / request changes / reject |
-| In-process isolation and online-only tradeoffs accepted | Pending |
-| G1 exact contract and first-enrollment replay residual | Pending: this document's G1 candidate |
-| G2 exact contract and bearer-only device semantics | Pending: this document's G2 candidate |
-| Implementation scope / browser evidence gate accepted | Pending |
+| Reviewer / date | Human security reviewer / 2026-09-05 |
+| Decision | Approved D1–D6 and exact G1/G2 candidates |
+| In-process isolation and online-only tradeoffs accepted | Approved |
+| G1 exact contract and first-enrollment replay residual | Approved; residual accepted for C04's initial online-only slice |
+| G2 exact contract and bearer-only device semantics | Approved |
+| Implementation scope / browser evidence gate accepted | Approved; all listed evidence remains mandatory before C04 merge |
 
-Suggested decision text for the reviewer: “Approve ADR-0011 D1–D6 and the exact
-G1/G2 candidate specifications, including G1's first-enrollment replay residual
-and G2's bearer-only device semantics. Permit their normative contract revision
-and bounded implementation after the integrator records task grants; require
-the listed integration/browser evidence before merge.” Direction-only approval
-leaves G1/G2 and implementation blocked. This is a template, not an approval.
+Recorded decision: “Approve ADR-0011 D1–D6 and the exact G1/G2 candidate
+specifications, including G1's first-enrollment replay residual and G2's
+bearer-only device semantics. Permit their normative contract revision and
+bounded implementation after the integrator records task grants; require the
+listed integration/browser evidence before merge.”
 
 ## Preparation completion report
 
 Task: C04-ADR-DRAFT — approval preparation, synthesis candidate ADR-0011.
-Status: REVIEW; document ready for human architectural review; C04 BLOCKED.
+Status: APPROVED; C04 implementation may be dispatched in bounded packages.
 Commits: see the task branch's `C04-ADR-DRAFT:` commit.
 Changed paths: this new Markdown file only.
-Contract changes: none; G1/G2 are explicitly unapproved proposals.
+Contract changes: approved additive revisions for KeyBundle serialization/
+conflict handling and bearer-only DeviceCreate enrollment; transcription and
+fixtures remain a bounded implementation task.
 Verification commands and results: `bun test apps/extension/test
 packages/extension-adapters/test` — 9 pass, 0 fail, 26 assertions;
 `bun run check:boundaries` — pass, on the integration checkout before editing.
@@ -373,9 +377,10 @@ These baseline checks do not prove C04's proposed behavior. Documentation
 whitespace and relative-link checks passed on this document; independent final
 review and any resulting corrections are recorded with the task's review evidence.
 Known limitations: no new browser E2E or external audit; browser version matrix
-and human acceptance of candidate bundle/device contracts remain open; baseline worktree had
+and browser version matrix remain open; baseline worktree had
 pre-existing uncommitted web/dev/WASM files, left untouched.
 Security considerations: independent Claude/OpenCode review plus integrator
 source verification; no secrets or implementation changes in this deliverable.
-Follow-up tasks: human decision above, approved G1/G2 contract transcription and bounded
-implementation, real-browser security verification, then integration review.
+Follow-up tasks: approved G1/G2 contract transcription, backend/SDK/web bundle
+publication, extension implementation, real-browser security verification, then
+integration review.
