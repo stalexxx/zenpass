@@ -53,12 +53,62 @@ export async function bindSessionToDevice(pool, sessionId, deviceId) {
  * Rotates a device-bound session: revokes it and issues a replacement bound
  * to the same device. Per ADR-0005, only a non-revoked device-bound session
  * may refresh; callers must check `session.device_id` before calling this.
+ *
+ * SEC-06 (GitHub issue #6): the revoke-then-insert used to be two separate
+ * statements with no affected-row check, so two concurrent refresh calls for
+ * the same bearer session could both pass `requireSession`'s earlier
+ * liveness check and each mint a distinct successor before either `UPDATE`
+ * landed. This now runs as a single atomic `UPDATE ... WHERE revoked_at IS
+ * NULL AND expires_at > now() ... RETURNING` on one connection (one
+ * transaction, one pooled client), joined against `devices` to re-check
+ * device-binding/revocation state at the same instant rather than relying
+ * only on the caller's earlier read. Postgres holds the row lock for the
+ * statement's duration, so a second concurrent call for the same session
+ * blocks until the first commits or rolls back, then re-evaluates the
+ * `WHERE` against the now-revoked row and affects zero rows — exactly one
+ * caller ever gets a successor. Every other caller gets `null` back; route
+ * handlers must turn that into a generic unauthorized response, never a
+ * second token. If the successor `INSERT` throws, the whole transaction
+ * rolls back, so no session is left revoked without a live successor.
  */
 export async function rotateSession(pool, session, ttlSeconds) {
-  await pool.query('UPDATE sessions SET revoked_at = now() WHERE session_id = $1', [session.session_id]);
-  const next = await issueSession(pool, session.account_id, ttlSeconds, 'refresh');
-  await bindSessionToDevice(pool, next.sessionId, session.device_id);
-  return next;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `UPDATE sessions s
+       SET revoked_at = now()
+       FROM devices d
+       WHERE s.session_id = $1
+         AND s.revoked_at IS NULL
+         AND s.expires_at > now()
+         AND s.device_id IS NOT NULL
+         AND s.device_id = d.device_id
+         AND d.revoked_at IS NULL
+       RETURNING s.session_id, s.account_id, s.device_id`,
+      [session.session_id]
+    );
+    const revoked = rows[0];
+    if (!revoked) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const token = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+    const sessionId = randomUUID();
+    await client.query(
+      'INSERT INTO sessions (session_id, account_id, token_hash, expires_at, issued_via, device_id) VALUES ($1, $2, $3, $4, $5, $6)',
+      [sessionId, revoked.account_id, hashToken(token), expiresAt, 'refresh', revoked.device_id]
+    );
+    await client.query('COMMIT');
+    return { sessionId, accountId: revoked.account_id, accessToken: token, expiresAt: expiresAt.toISOString() };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function revokeSession(pool, sessionId) {

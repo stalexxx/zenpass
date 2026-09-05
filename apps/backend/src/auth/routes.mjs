@@ -188,7 +188,16 @@ export function registerAuthRoutes(app, { pool, ready, loginStateStore, config }
       sendUnauthorized(reply, request);
       return;
     }
+    // SEC-06: rotateSession re-checks liveness/device-binding atomically
+    // under its own transaction and returns null if this session lost the
+    // race (already rotated/revoked/expired by another concurrent caller,
+    // or its device was revoked concurrently) — a generic unauthorized
+    // response, never a second successor for the same original session.
     const session = await rotateSession(pool, authSession, config.sessionTtlSeconds);
+    if (!session) {
+      sendUnauthorized(reply, request);
+      return;
+    }
     sendJson(reply, 200, { accessToken: session.accessToken, expiresAt: session.expiresAt });
   });
 
