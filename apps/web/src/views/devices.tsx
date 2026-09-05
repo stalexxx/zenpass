@@ -32,6 +32,9 @@ export function Devices({ ctx }: { ctx: AppContext }): ReactNode {
       <button type="button" onClick={() => ctx.navigate({ name: "vault" })}>
         Back to vault
       </button>
+      <button type="button" onClick={() => ctx.navigate({ name: "extension-setup" })}>
+        Set up browser extension
+      </button>
       {error ? <p className="error" role="alert">{error}</p> : null}
       <table>
         <thead>

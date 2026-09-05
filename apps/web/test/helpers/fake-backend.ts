@@ -20,6 +20,10 @@ export interface FakeServerOptions {
   /** When true, all sync (mutate/changes) calls fail as a network error —
    * simulates being offline. */
   offline?: boolean;
+  /** Pre-seeds /account/key-bundle as if another device had already
+   * published this exact revision, so a test can exercise the 409
+   * KeyBundleConflict path (ADR-0011 G1) without a second real client. */
+  seedKeyBundle?: { bundle: string; version: number };
 }
 
 /** A minimal in-memory fake of the auth+sync HTTP surface. Good enough for
@@ -30,6 +34,7 @@ export function createFakeFetch(options: FakeServerOptions = {}): typeof fetch {
   const items = new Map<string, { itemId: string; vaultId: string; ciphertext: string; envelopeVersion: string; revision: number; deleted: boolean; createdAt: string; updatedAt: string }>();
   let nextRevision = 1;
   const devices = [{ deviceId: "dev1", name: "Test browser", createdAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(), revokedAt: null as string | null }];
+  let keyBundle: { bundle: string; version: number } | null = options.seedKeyBundle ?? null;
 
   return (async (url: string | URL, init?: RequestInit) => {
     const u = new URL(String(url));
@@ -57,6 +62,38 @@ export function createFakeFetch(options: FakeServerOptions = {}): typeof fetch {
       const device = devices.find((d) => d.deviceId === id);
       if (device) device.revokedAt = new Date().toISOString();
       return json({});
+    }
+    if (u.pathname === "/account/key-bundle" && method === "GET") {
+      if (!keyBundle) return json({ error: "not_found", message: "no bundle", requestId: "test" }, 404);
+      return json(keyBundle);
+    }
+    if (u.pathname === "/account/key-bundle" && method === "PUT") {
+      // Mirrors apps/backend/src/account/store.mjs's CAS rules closely
+      // enough for a UI-level test (this is a fake, not a contract-
+      // conformance harness — that's apps/backend/test/account's job).
+      const attempted = body as { bundle: string; version: number };
+      if (!keyBundle) {
+        if (attempted.version !== 1) {
+          return json({ error: "key_bundle_conflict", currentVersion: null, attemptedVersion: attempted.version }, 409);
+        }
+        keyBundle = { bundle: attempted.bundle, version: 1 };
+        return new Response(null, { status: 204 });
+      }
+      if (attempted.version === keyBundle.version) {
+        if (attempted.bundle === keyBundle.bundle) return new Response(null, { status: 204 });
+        return json(
+          { error: "key_bundle_conflict", currentVersion: keyBundle.version, attemptedVersion: attempted.version },
+          409,
+        );
+      }
+      if (attempted.version !== keyBundle.version + 1) {
+        return json(
+          { error: "key_bundle_conflict", currentVersion: keyBundle.version, attemptedVersion: attempted.version },
+          409,
+        );
+      }
+      keyBundle = { bundle: attempted.bundle, version: attempted.version };
+      return new Response(null, { status: 204 });
     }
     if (/^\/vaults\/[^/]+\/items$/.test(u.pathname) && method === "POST") {
       if (options.offline) return networkFailure();

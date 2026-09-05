@@ -21,6 +21,7 @@ import { Import } from "./views/import.tsx";
 import { Export } from "./views/export.tsx";
 import { Devices } from "./views/devices.tsx";
 import { Conflicts } from "./views/conflicts.tsx";
+import { ExtensionSetup } from "./views/extension-setup.tsx";
 
 const INACTIVITY_LOCK_MS = 5 * 60_000; // 5 minutes (docs/ux/flows.md: "Automatic lock triggers after inactivity")
 const API_BASE_URL = (globalThis as { ZKPM_API_BASE_URL?: string }).ZKPM_API_BASE_URL ?? "http://localhost:8787";
@@ -164,5 +165,8 @@ export function App({ announcer, api, auth, cryptoClient, accountId, repo }: App
     case "conflicts":
       if (!ctx.vault.isUnlocked) return <Unlock ctx={ctx} />;
       return <Conflicts ctx={ctx} conflicts={pendingConflicts} />;
+    case "extension-setup":
+      if (!ctx.vault.isUnlocked) return <Unlock ctx={ctx} />;
+      return <ExtensionSetup ctx={ctx} />;
   }
 }

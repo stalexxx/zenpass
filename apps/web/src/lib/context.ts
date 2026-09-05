@@ -10,7 +10,8 @@ export type View =
   | { name: "import" }
   | { name: "export" }
   | { name: "devices" }
-  | { name: "conflicts" };
+  | { name: "conflicts" }
+  | { name: "extension-setup" };
 
 /** Everything a view needs, assembled once at boot. Holds no plaintext
  * itself — VaultSession is the only piece that ever does, and it's
