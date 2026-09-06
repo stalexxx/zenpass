@@ -1,0 +1,29 @@
+[package]
+name = "zkpm-backend-poc"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93.1"
+publish = false
+
+# Isolate PoC dependency resolution from the approved root crypto workspace.
+[workspace]
+resolver = "3"
+
+[dependencies]
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
+crypto-core = { path = "../../crates/crypto-core" }
+secrecy = "=0.10.3"
+serde = { version = "=1.0.229", features = ["derive"] }
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres"] }
+thiserror = "=2.0.20"
+tokio = { version = "=1.53.1", default-features = false, features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time"] }
+tracing = "=0.1.44"
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "json", "registry", "std"] }
+
+[dev-dependencies]
+http-body-util = "=0.1.4"
+serde_json = "=1.0.151"
+tower = { version = "=0.5.3", features = ["util"] }
+
+[lints.rust]
+unsafe_code = "forbid"
