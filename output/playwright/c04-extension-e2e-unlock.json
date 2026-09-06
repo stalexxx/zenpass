@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-09-06T00:58:35.136Z",
+  "scenarios": {
+    "realStackUnlock": {
+      "verified": true,
+      "accountId": "acct-af91e8e1-64c0-4e18-bded-e050364525e0"
+    },
+    "untrustedPopupSenderRefused": {
+      "verified": true,
+      "results": [
+        {
+          "message": {
+            "type": "unlock",
+            "accountId": "a",
+            "apiOrigin": "https://example.test",
+            "password": [
+              1,
+              2,
+              3
+            ]
+          },
+          "response": {
+            "type": "locked"
+          }
+        },
+        {
+          "message": {
+            "type": "logout"
+          },
+          "response": {
+            "type": "locked"
+          }
+        },
+        {
+          "message": {
+            "type": "list-items"
+          },
+          "response": {
+            "type": "locked"
+          }
+        },
+        {
+          "message": {
+            "type": "get-totp",
+            "itemId": "x"
+          },
+          "response": {
+            "type": "locked"
+          }
+        },
+        {
+          "message": {
+            "type": "save-item",
+            "title": "x",
+            "itemType": "note"
+          },
+          "response": {
+            "type": "locked"
+          }
+        }
+      ]
+    }
+  }
+}

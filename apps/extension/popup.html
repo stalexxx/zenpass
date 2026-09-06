@@ -2,7 +2,57 @@
 <html lang="en">
   <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>ZKPM</title><link rel="stylesheet" href="popup.css"></head>
   <body>
-    <main><h1>ZKPM</h1><p id="status" aria-live="polite">Checking this page.</p><section id="choices" aria-label="Login choices"></section><p id="setup-note" class="note">Independent unlock requires the vault API (C04-G1) and is unavailable in this build.</p><button id="lock" type="button">Lock vault</button></main>
+    <main>
+      <h1>ZKPM</h1>
+      <p id="status" aria-live="polite">Checking this page.</p>
+
+      <form id="unlock-form" hidden>
+        <label for="accountId">Account ID</label>
+        <input id="accountId" name="accountId" type="text" autocomplete="off" required>
+        <label for="apiOrigin">API origin (HTTPS)</label>
+        <input id="apiOrigin" name="apiOrigin" type="text" placeholder="https://api.example.com" autocomplete="off" required>
+        <label for="masterPassword">Master password</label>
+        <input id="masterPassword" name="masterPassword" type="password" autocomplete="current-password" required>
+        <button type="submit">Unlock</button>
+      </form>
+
+      <section id="choices" aria-label="Login choices"></section>
+
+      <section id="unlocked-panel" hidden>
+        <section id="items" aria-label="Vault items"></section>
+
+        <form id="save-form">
+          <h2>Save item</h2>
+          <input id="save-itemId" type="hidden">
+          <label for="save-title">Title</label>
+          <input id="save-title" name="title" type="text" required>
+          <label for="save-type">Type</label>
+          <select id="save-type" name="itemType">
+            <option value="login">Login</option>
+            <option value="totp-login">Login with TOTP</option>
+            <option value="note">Note</option>
+          </select>
+          <label for="save-username">Username</label>
+          <input id="save-username" name="username" type="text" autocomplete="off">
+          <label for="save-password">Password</label>
+          <input id="save-password" name="password" type="password" autocomplete="off">
+          <label for="save-url">URL</label>
+          <input id="save-url" name="url" type="text" autocomplete="off">
+          <label for="save-notes">Notes</label>
+          <textarea id="save-notes" name="notes"></textarea>
+          <label for="save-totp">TOTP secret (base32)</label>
+          <input id="save-totp" name="totpSecret" type="text" autocomplete="off">
+          <button type="submit">Save</button>
+          <p class="note">Editing an existing item requires re-entering its password/notes/TOTP secret — the background never sends a decrypted secret back to this popup except when you explicitly request the current TOTP code below.</p>
+        </form>
+
+        <section id="totp-display" aria-live="polite"></section>
+
+        <button id="logout" type="button">Log out</button>
+      </section>
+
+      <button id="lock" type="button">Lock vault</button>
+    </main>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

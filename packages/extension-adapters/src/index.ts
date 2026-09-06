@@ -28,7 +28,8 @@ export type RefusalReason =
   | "confirmation-required"
   | "stale-capability"
   | "document-targeting-unsupported"
-  | "unlock-unavailable";
+  | "unlock-unavailable"
+  | "not-found";
 
 export type FillDecision =
   | { allowed: true; candidates: LoginCandidate[] }
@@ -60,18 +61,96 @@ export function confirmFill(userGesture: boolean): { allowed: true } | { allowed
   return userGesture ? { allowed: true } : { allowed: false, reason: "confirmation-required" };
 }
 
+/** Fill fields for one selected candidate: username/password, plus an
+ * optionally freshly-computed current TOTP code for a totp-login item. */
+export interface FillFields {
+  username: string;
+  password: string;
+  totp?: string;
+}
+
 /**
- * Candidate/field source for the background. Until C04-G1 lands the
- * independent OPAQUE unlock and key-bundle opening, no production
- * implementation exists: the extension stays locked and refuses offers.
- * This interface is the seam G1 will implement inside the trusted
- * background; it must never be satisfiable from a content script or page.
+ * Candidate/field source for the background, implemented by
+ * `apps/extension/src/vault-manager.ts` (C04-EXT2) using the background's
+ * private `CryptoWorkerHost`/WASM adapter. Never satisfiable from a
+ * content script or page.
  */
 export interface VaultCandidateSource {
   /** Exact-origin candidate membership is decided by the background. */
   candidatesFor(pageOrigin: string): readonly LoginCandidate[];
-  /** Returns the fill fields for one selected candidate, or null. */
-  fieldsFor(itemId: string, pageOrigin: string): { username: string; password: string; totp?: string } | null;
+  /** Returns the fill fields for one selected candidate, or null. A TOTP
+   * code (when present) is computed fresh at call time, so this may be
+   * asynchronous; callers must `await` the result either way. */
+  fieldsFor(itemId: string, pageOrigin: string): FillFields | null | Promise<FillFields | null>;
+}
+
+/** Non-secret item metadata for the popup's save/browse list. */
+export interface ItemSummary {
+  itemId: string;
+  title: string;
+  type: "login" | "note" | "totp-login";
+  username?: string;
+  url?: string;
+}
+
+/** Popup-entered fields for a create/edit (ADR-0011 D3's "manual popup
+ * save/update"). Byte-array fields are decoded from the bounded
+ * JSON-compatible integer-byte-array encoding used for runtime messaging
+ * before this shape is constructed; string fields are plain bounded text. */
+export interface SaveItemInput {
+  itemId?: string;
+  title: string;
+  type: "login" | "note" | "totp-login";
+  username?: string;
+  password?: string;
+  url?: string;
+  notes?: string;
+  totpSecret?: string;
+}
+
+export type SaveItemResult =
+  | { ok: true; itemId: string }
+  | { ok: false; reason: "validation"; problems: readonly string[] }
+  | { ok: false; reason: "conflict" }
+  | { ok: false; reason: "locked" }
+  | { ok: false; reason: "network" };
+
+export interface TotpDisplay {
+  code: string;
+  secondsRemaining: number;
+}
+
+export type UnlockResult =
+  | { ok: true }
+  | { ok: false; reason: "unlock-failed" };
+
+/**
+ * Extends `VaultCandidateSource` with the independent-unlock, save/update,
+ * TOTP, and lifecycle operations C04-EXT2 wires up (ADR-0011 D1/D3/D5/D6).
+ * Optional beyond the base interface so existing fixtures/tests that only
+ * exercise fill/candidate selection are unaffected; `background.ts` refuses
+ * with `unlock-unavailable` when a given method is absent.
+ */
+export interface VaultManager extends VaultCandidateSource {
+  unlock(accountId: string, apiOrigin: string, password: Uint8Array): Promise<UnlockResult>;
+  /** Purely local lock: disposes the host session and clears the item
+   * cache/bearer token in memory, without attempting any network call.
+   * Used for every non-explicit-logout lock event (explicit lock, popup
+   * close, timeout, eviction/restart, auth failure). Safe to call while
+   * already locked. */
+  lock(): void;
+  /** Attempts server-side session revocation, but always clears local
+   * state in `finally` regardless of whether that attempt succeeds. */
+  logout(): Promise<void>;
+  isUnlocked(): boolean;
+  listItems(): readonly ItemSummary[];
+  saveItem(input: SaveItemInput): Promise<SaveItemResult>;
+  getTotp(itemId: string): Promise<TotpDisplay | null>;
+  /** Performs (or reuses, within the 30s window) the fresh authenticated
+   * check ADR-0011 D5 requires before every candidate/secret display, fill,
+   * TOTP generation and mutation. Returns false (and locks the session via
+   * the manager's configured failure callback) on network failure or 401. */
+  checkFresh(): Promise<boolean>;
 }
 
 export { parseContentMessage, parsePopupMessage, type ValidatedContentMessage, type ValidatedPopupMessage } from "./schema.ts";
@@ -86,3 +165,5 @@ export {
   type RandomBytes,
 } from "./capability.ts";
 export { SessionStateMachine, POPUP_INACTIVITY_LIMIT_MS, type LockReason } from "./session-state.ts";
+export { computeTotp, secondsRemaining, base32Decode, type TotpAlgorithm, type TotpOptions } from "./totp.ts";
+export { isByteArray, toByteArray, fromByteArray, clearNumberArray, stringToByteArray, byteArrayToString, MAX_SECRET_BYTES } from "./bytes.ts";

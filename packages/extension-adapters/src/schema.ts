@@ -1,3 +1,4 @@
+import { isByteArray, MAX_SECRET_BYTES } from "./bytes.ts";
 import type { PageRequest } from "./index.ts";
 
 /**
@@ -59,25 +60,88 @@ export function parseContentMessage(message: unknown): ValidatedContentMessage |
   return { type: "offer", request: request as unknown as PageRequest };
 }
 
+const MAX_ACCOUNT_ID_LENGTH = 256;
+const MAX_ORIGIN_LENGTH = 512;
+const MAX_TITLE_LENGTH = 500;
+const MAX_USERNAME_LENGTH = 1024;
+const MAX_NOTES_BYTES = 128 * 1024;
+const ITEM_TYPES = new Set(["login", "note", "totp-login"]);
+
 export type ValidatedPopupMessage =
   | { type: "get-state" }
   | { type: "request-candidates" }
   | { type: "fill-selected"; requestId: string; itemId: string }
-  | { type: "lock" };
+  | { type: "lock" }
+  | { type: "logout" }
+  | { type: "list-items" }
+  | { type: "get-totp"; itemId: string }
+  | { type: "unlock"; accountId: string; apiOrigin: string; password: number[] }
+  | {
+      type: "save-item";
+      title: string;
+      itemType: "login" | "note" | "totp-login";
+      itemId?: string;
+      username?: string;
+      password?: number[];
+      url?: string;
+      notes?: number[];
+      totpSecret?: number[];
+    };
 
 /** Validates a message claiming to come from the extension popup. The popup
  * may ask for state, request candidates for its bound tab, select a
- * background-issued capability, or lock. No credential, token, origin, or
- * candidate list may arrive here. */
+ * background-issued capability, lock, log out, list/save vault items,
+ * request the current TOTP code, or independently unlock. No token,
+ * candidate list, or field value beyond what the user just entered may
+ * arrive here — every schema below rejects unknown fields and out-of-range
+ * types/lengths rather than normalizing hostile input. */
 export function parsePopupMessage(message: unknown): ValidatedPopupMessage | null {
   if (!isPlainObject(message) || typeof message.type !== "string") return null;
-  if (message.type === "get-state" || message.type === "request-candidates" || message.type === "lock") {
+  if (
+    message.type === "get-state" || message.type === "request-candidates" || message.type === "lock" ||
+    message.type === "logout" || message.type === "list-items"
+  ) {
     return hasExactKeys(message, ["type"]) ? { type: message.type } : null;
   }
   if (message.type === "fill-selected") {
     if (!hasExactKeys(message, ["type", "requestId", "itemId"])) return null;
     if (!boundedString(message.requestId, MAX_ID_LENGTH) || !boundedString(message.itemId, MAX_ID_LENGTH)) return null;
     return { type: "fill-selected", requestId: message.requestId, itemId: message.itemId };
+  }
+  if (message.type === "get-totp") {
+    if (!hasExactKeys(message, ["type", "itemId"])) return null;
+    if (!boundedString(message.itemId, MAX_ID_LENGTH)) return null;
+    return { type: "get-totp", itemId: message.itemId };
+  }
+  if (message.type === "unlock") {
+    if (!hasExactKeys(message, ["type", "accountId", "apiOrigin", "password"])) return null;
+    if (!boundedString(message.accountId, MAX_ACCOUNT_ID_LENGTH)) return null;
+    if (!boundedString(message.apiOrigin, MAX_ORIGIN_LENGTH)) return null;
+    if (!isByteArray(message.password) || message.password.length === 0) return null;
+    return { type: "unlock", accountId: message.accountId, apiOrigin: message.apiOrigin, password: message.password };
+  }
+  if (message.type === "save-item") {
+    if (!hasExactKeys(message, ["type", "title", "itemType"], ["itemId", "username", "password", "url", "notes", "totpSecret"])) return null;
+    if (!boundedString(message.title, MAX_TITLE_LENGTH)) return null;
+    if (typeof message.itemType !== "string" || !ITEM_TYPES.has(message.itemType)) return null;
+    if ("itemId" in message && !boundedString(message.itemId, MAX_ID_LENGTH)) return null;
+    if ("username" in message && !boundedString(message.username, MAX_USERNAME_LENGTH)) return null;
+    if ("url" in message && !boundedString(message.url, MAX_URL_LENGTH)) return null;
+    if ("password" in message && !isByteArray(message.password)) return null;
+    if ("notes" in message && !isByteArray(message.notes, MAX_NOTES_BYTES)) return null;
+    if ("totpSecret" in message && !isByteArray(message.totpSecret)) return null;
+    const result: ValidatedPopupMessage = {
+      type: "save-item",
+      title: message.title,
+      itemType: message.itemType as "login" | "note" | "totp-login",
+    };
+    if ("itemId" in message) (result as { itemId?: string }).itemId = message.itemId as string;
+    if ("username" in message) (result as { username?: string }).username = message.username as string;
+    if ("password" in message) (result as { password?: number[] }).password = message.password as number[];
+    if ("url" in message) (result as { url?: string }).url = message.url as string;
+    if ("notes" in message) (result as { notes?: number[] }).notes = message.notes as number[];
+    if ("totpSecret" in message) (result as { totpSecret?: number[] }).totpSecret = message.totpSecret as number[];
+    return result;
   }
   return null;
 }
