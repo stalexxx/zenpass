@@ -3,20 +3,29 @@
          android:usesCleartextTraffic="false" in the manifest. -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
-            <certificate src="system" />
+            <certificates src="system" />
         </trust-anchors>
     </base-config>
-    <!-- D02-MVP manual on-emulator evidence run only: Android's own
-         "debug-overrides" mechanism trusts a user-installed CA certificate
-         in debug builds only (this block is inert in a release build,
-         regardless of debuggable-flag tampering — release builds don't
-         merge debug-overrides at all). This lets a debug build validate
-         tests/browser/https-fixture.mjs's freshly-generated self-signed
-         certificate for a real end-to-end unlock demo against a real
-         backend, without weakening the production trust model at all. -->
-    <debug-overrides>
+    <!-- D02-MVP manual on-emulator evidence run only: trusts one fixed,
+         checked-in, throwaway self-signed certificate
+         (apps/android/demo-fixture/demo-cert.pem/-key.pem, 127.0.0.1-only,
+         10-year validity, private key never shipped in the app), scoped
+         strictly to the loopback domain "127.0.0.1" via <domain-config> so
+         it can never be presented by, or extend trust to, any other host
+         — this is not a debug/production distinction, it's a fixed
+         additional trust anchor for one specific test/demo hostname only.
+         Generated solely for apps/android/scripts/manual-emulator-fixture.mjs,
+         which fronts the real backend with this certificate so the actual
+         Android app can perform a real on-device TLS handshake against it
+         without any on-device "install a CA certificate" step (that flow
+         requires a device credential and, on this API level's scoped
+         storage, could not even read a pushed certificate file — see this
+         task's completion report for what was tried before landing here). -->
+    <domain-config>
+        <domain includeSubdomains="false">127.0.0.1</domain>
         <trust-anchors>
-            <certificate src="user" />
+            <certificates src="system" />
+            <certificates src="@raw/demo_ca" />
         </trust-anchors>
-    </debug-overrides>
+    </domain-config>
 </network-security-config>
