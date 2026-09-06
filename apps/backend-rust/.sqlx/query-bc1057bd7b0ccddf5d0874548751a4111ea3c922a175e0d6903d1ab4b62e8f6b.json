@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = $1 ORDER BY sequence_name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sequence_name",
+        "type_info": "Name"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Name"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "bc1057bd7b0ccddf5d0874548751a4111ea3c922a175e0d6903d1ab4b62e8f6b"
+}

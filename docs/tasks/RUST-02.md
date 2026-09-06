@@ -1,6 +1,6 @@
 # RUST-02: Rust production foundation and database baseline
 
-Status: BLOCKED. Owner: next agent, not dispatched by RUST-01.
+Status: REVIEW. Owner: next agent, not dispatched by RUST-01.
 Dependencies: RUST-01 integrated and its report accepted by integration agent.
 Goal: prepare the selected stack for product parity without switching production.
 

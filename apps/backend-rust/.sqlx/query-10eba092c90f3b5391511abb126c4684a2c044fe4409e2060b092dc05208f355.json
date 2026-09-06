@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE' AND table_name <> ALL($2) ORDER BY table_name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "table_name",
+        "type_info": "Name"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Name",
+        "NameArray"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "10eba092c90f3b5391511abb126c4684a2c044fe4409e2060b092dc05208f355"
+}

@@ -1,0 +1,83 @@
+# RUST-02: Rust backend foundation checks. Runs the pinned toolchain with a
+# real disposable PostgreSQL 16 service; never touches production.
+name: rust-backend
+
+on:
+  push:
+    paths:
+      - "apps/backend-rust/**"
+      - ".github/workflows/rust-backend.yml"
+  pull_request:
+    paths:
+      - "apps/backend-rust/**"
+      - ".github/workflows/rust-backend.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: rust02ci
+        ports:
+          - 127.0.0.1:55432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d rust02ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    defaults:
+      run:
+        working-directory: apps/backend-rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.93.1
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/backend-rust
+      - name: Install SQLx CLI and audit tools
+        run: >
+          cargo install cargo-sqlx --version 0.8.6 --locked &&
+          cargo install cargo-audit cargo-deny --locked
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Build
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci
+        run: cargo build --locked
+      - name: Unit tests
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci
+        run: cargo test --locked
+      - name: PostgreSQL integration tests
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci
+          RUST_TEST_DATABASE_URL: postgres://postgres@127.0.0.1:55432/postgres
+        run: cargo test --locked --test postgres -- --ignored
+      - name: Migrate a scratch database, then verify SQLx offline metadata
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci_prepare
+        run: |
+          psql "postgres://postgres@127.0.0.1:55432/postgres" -c "CREATE DATABASE rust02ci_prepare;"
+          cargo build --locked --bin zkpm-backend
+          ZKPM_DATABASE_URL="$DATABASE_URL" ./target/debug/zkpm-backend migrate
+          cargo sqlx prepare --check
+      - name: Dependency, advisory and license checks
+        run: |
+          cargo audit
+          cargo deny check advisories licenses sources bans
+      - name: Offline rebuild without a database URL
+        run: env -u DATABASE_URL SQLX_OFFLINE=true cargo build --locked --offline
+      - name: Diff hygiene
+        run: git diff --check

@@ -1,38 +1,74 @@
-# RUST-01 backend proof of concept
+# Rust backend (RUST-02 production foundation)
 
-Isolated **local-only PoC**, not a replacement for `apps/backend`.
-Stack/remaining work: [ADR-0013](../../docs/decisions/ADR-0013-rust-backend.md),
-[migration handoff](../../docs/plan/RUST-MIGRATION.md).
+Isolated crate, not a replacement for `apps/backend` yet: the Bun service
+remains the reference implementation until RUST-04 cutover approval.
+Stack/decisions: [ADR-0013](../../docs/decisions/ADR-0013-rust-backend.md),
+[migration handoff](../../docs/plan/RUST-MIGRATION.md),
+[RUST-02 report](../../docs/plan/reports/RUST-02.md).
 
-Rust 1.93.1, Axum 0.8.9, Tokio 1.53.1, SQLx 0.8.6/PostgreSQL (no ORM).
-Exact direct pins/features: Cargo.toml; full resolution: Cargo.lock. Standalone
-workspace; existing root crypto-core is linked without source or direct-pin changes.
+Rust 1.93.1, Axum 0.8.9, Tokio 1.53.1, SQLx 0.8.6/PostgreSQL 16 (no ORM:
+explicit parameterized SQL, typed rows, compile-time `query!` macros and
+subject-area storage functions). Exact direct pins/features: Cargo.toml;
+full resolution: Cargo.lock. Standalone workspace; the existing root
+crypto-core is linked with pinned version `=0.1.0` and unchanged sources.
 Run Cargo commands **from this directory** so rust-toolchain.toml is honored.
 
-## Run
-
-Use a dedicated disposable PostgreSQL 16 instance. This example has no credentials
-and trusts only the isolated development container connection; never use its trust
-configuration for production. Host publishing is restricted to loopback.
+## Commands
 
 ```sh
-docker run --detach --name rust01-poc-postgres \
-  --env POSTGRES_HOST_AUTH_METHOD=trust --env POSTGRES_DB=rust01_poc \
-  --publish 127.0.0.1:55439:5432 postgres:16-alpine
-cd apps/backend-rust
-POC_DATABASE_URL=postgres://postgres@127.0.0.1:55439/rust01_poc cargo run --locked
+zkpm-backend serve        # HTTP API; never runs migrations implicitly
+zkpm-backend migrate      # exclusive-locked forward migration runner
+zkpm-backend healthcheck  # bounded DB probe, exit code 1 on failure
 ```
 
-Default bind: `127.0.0.1:3100`, override with `POC_BIND` (numeric loopback only).
-`POC_DATABASE_URL` is mandatory; only numeric loopback PostgreSQL hosts allowed.
-Configuration errors never echo supplied values. No .env file is loaded.
+Configuration is strictly typed environment variables (`ZKPM_*`, see
+`src/config.rs`); errors never echo supplied values and no `.env` file is
+loaded. Development/test allow loopback only (bind and database host);
+production additionally requires `ZKPM_DATABASE_TLS=verify-full` with a PEM
+CA file for any non-loopback database host, and explicit `ZKPM_CORS_ORIGINS`
+(exact origins, no wildcards). Defaults: bind `127.0.0.1:8080`, pool 10,
+acquire timeout 2s, body limit 1 MiB, request timeout 15s, concurrency 64,
+shutdown drain 10s.
 
-- `GET /health/live`: 200, `{"status":"ok"}` even if DB unavailable.
-- `GET /health/ready`: bounded SELECT 1; 200 `ok` or 503 `not_ready`.
-- Product API routes do not exist. No migrations or data writes at server startup.
-- Ctrl-C/SIGTERM triggers graceful shutdown with a five-second drain bound.
-- Pool max 4; readiness/acquire timeout 2 seconds.
-- Fixed JSON log target/fields; RUST_LOG cannot enable SQL or dependency dumps.
+## Local run
+
+Use a dedicated disposable PostgreSQL 16 instance. This example has no
+credentials and trusts only the isolated development container connection;
+never use its trust configuration for production. Host publishing is
+restricted to loopback.
+
+```sh
+docker run --detach --name rust02-postgres \
+  --env POSTGRES_HOST_AUTH_METHOD=trust --env POSTGRES_DB=rust02 \
+  --publish 127.0.0.1:55440:5432 postgres:16-alpine
+cd apps/backend-rust
+ZKPM_DATABASE_URL=postgres://postgres@127.0.0.1:55440/rust02 \
+  cargo run --locked -- migrate
+ZKPM_DATABASE_URL=postgres://postgres@127.0.0.1:55440/rust02 \
+  cargo run --locked -- serve
+```
+
+- `GET /health/live`: 200 `{"status":"ok"}` even if the DB is unavailable.
+- `GET /health/ready`: bounded compile-time `SELECT 1`; 200 `ok` or 503
+  with a generic `ApiError` body (`error`, `message`, server-generated
+  `requestId`).
+- Product API routes do not exist yet (DTO skeleton in `src/dto.rs` maps
+  `packages/contracts/openapi.yaml`; RUST-03 implements the routes).
+- JSON logs carry only fixed route names, status, timing and generated
+  request IDs; bodies, query strings, headers, tokens, SQL parameters and
+  raw DB errors are never logged.
+- Ctrl-C/SIGTERM drains in-flight requests within the shutdown bound.
+
+## Migration history adoption
+
+`migrations/` holds byte-identical copies of `db/migrations/*.sql`
+(renamed to SQLx `000N_*.sql` numbering, versions 1-5). The originals stay
+authoritative for the Bun backend. `migrate` serializes runs with a session
+advisory lock, adopts an existing legacy `schema_migrations` history only
+after proving schema equivalence (scratch-schema replay in a rolled-back
+transaction), writes baseline rows with real SQLx checksums, and keeps the
+legacy table in sync so the old server stays deployable. Fresh installs
+apply all migrations and record both histories.
 
 ## Verify
 
@@ -41,31 +77,35 @@ cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo build --locked
 cargo test --locked
-POC_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55439/rust01_poc \
+RUST_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55440/postgres \
   cargo test --locked --test postgres -- --ignored
 ```
 
-The PostgreSQL test is explicitly ignored in the ordinary suite, **not counted as
-passing there**. Run the second command to verify actual readiness and rollback of
-a parameterized insertion in a connection-local temporary table. It creates no
-application tables and never reads vault data. Missing test URL fails that run.
+The PostgreSQL suite needs a dedicated disposable server (trust auth only
+for that local container), Docker for the pause/resume and TLS-container
+scenarios, and `openssl` for test certificates. It creates private
+databases per test and drops them afterwards; no production data is ever
+touched.
 
-Native OPAQUE tests call the existing core in-process with fresh generated input,
-then drop secret buffers. No fixed password/key fixture, no secret output, no HTTP
-auth handler. Blocking smoke work holds its semaphore permit inside the closure.
-Tests prove native compatibility, not native/WASM parity or audited production auth.
+SQLx compile-time checks use committed `.sqlx` offline metadata
+(`SQLX_OFFLINE=true cargo build --locked --offline` works with no
+`DATABASE_URL`). To regenerate after query changes: apply migrations to a
+scratch database, then `cargo sqlx prepare` (with `DATABASE_URL` set) and
+commit the result; CI enforces `cargo sqlx prepare --check`.
+
+Dependency review: `cargo audit` (two inherited findings from the frozen
+crypto-core pins, recorded in the RUST-02 report — this task must not
+change them) and `cargo deny check advisories licenses sources bans`
+(`deny.toml`).
 
 Cleanup (only the dedicated container created above):
 
 ```sh
-docker rm --force --volumes rust01-poc-postgres
+docker rm --force --volumes rust02-postgres
 ```
 
-## Deliberately left to the next agent
+## Deliberately left to the next tasks
 
-RUST-02: production config/middleware/CLI, remaining crate pins, SQLx compile-time
-queries/offline metadata, migration-history adoption, dependency/TLS/CI review.
-RUST-03: auth/devices/account/sync parity. RUST-04: Linux/container/client E2E and
-reviewed cutover/rollback. Existing production infrastructure stays on Bun.
-PoC only uses a constant runtime-typed SELECT 1, not query! or a migration runner.
-Do not deploy this service publicly or treat it as a completed backend rewrite.
+RUST-03: auth/devices/account/sync parity. RUST-04: Linux/container/client
+E2E and reviewed cutover/rollback. Do not deploy this service publicly or
+treat it as a completed backend rewrite.
