@@ -1,16 +1,23 @@
 # C04 browser security E2E report
 
-Status: **baseline real-browser evidence collected (below); C04-EXT2 closed independent unlock, save/update ciphertext-only, TOTP correctness, empty-vault-unlocks, and device-revoke-locks-session against the real backend/WASM/TLS stack — see "C04-EXT2: what changed and what is still genuinely open" for exactly what that does and does not cover. A literal trusted-popup-DOM-driven unlock/fill/save/TOTP round trip in a real browser remains open, for a documented Playwright tooling reason (not a security gap).**
+Status: **baseline real-browser evidence collected (below); C04-EXT2 closed independent unlock, save/update ciphertext-only, TOTP correctness, empty-vault-unlocks, and device-revoke-locks-session against the real backend/WASM/TLS stack. C04-EXT2-POPUP-E2E then closed the literal trusted-popup-DOM-driven round trip itself, in Chrome: real unlock click-through, same-origin fill, hostile-origin refusal, save/update (ciphertext-only, verified against the real backend), TOTP display, and a lock racing a real in-flight popup operation are all now exercised through a genuine Chrome extension action popup with real DOM clicks. Firefox has no automatable equivalent of the technique used (see "C04-EXT2-POPUP-E2E" below) and remains an explicitly documented gap, not a claimed pass.**
 
-Harness: `tests/browser/c04-extension-e2e.mjs` (baseline, below) and,
-added by C04-EXT2, `tests/browser/c04-extension-e2e-unlock.mjs` (real-stack
-unlock and untrusted-popup-sender-refusal evidence — see "C04-EXT2: what
-changed and what is still genuinely open"), run with:
+Harness: `tests/browser/c04-extension-e2e.mjs` (baseline, below),
+`tests/browser/c04-extension-e2e-unlock.mjs` (added by C04-EXT2; real-stack
+unlock and untrusted-popup-sender-refusal evidence), and
+`tests/browser/c04-extension-e2e-popup.mjs` (added by C04-EXT2-POPUP-E2E;
+the real popup-DOM round trip — see "C04-EXT2-POPUP-E2E: closing the real
+Chrome popup gap" below), run with:
 
 ```
 TEST_DATABASE_URL=postgres://pass:pass@127.0.0.1:5434/pass bun tests/browser/c04-extension-e2e.mjs
 TEST_DATABASE_URL=postgres://pass:pass@127.0.0.1:5434/pass bun tests/browser/c04-extension-e2e-unlock.mjs
+TEST_DATABASE_URL=postgres://pass:pass@127.0.0.1:5434/pass bun tests/browser/c04-extension-e2e-popup.mjs
 ```
+
+All three must run **headed** (no `headless: true` override) — Chrome's
+MV3 action popups do not open under headless Chrome, which is exactly the
+surface `c04-extension-e2e-popup.mjs` drives.
 
 Must run under `bun`, not plain `node` — the real backend's OPAQUE WASM
 binding init does a `fetch()` of a `file://` URL, which Node's built-in
@@ -54,10 +61,10 @@ If `TEST_DATABASE_URL` or `openssl` had been unavailable in this environment, th
 Per `docs/tasks/C04.md`'s "Required tests" and ADR-0011's evidence table, the following remain open and are **not** claimed as passing here:
 
 - ~~Independent extension-side OPAQUE unlock against the real key-bundle/device-enrollment API (G1/G2), and lock/restart/logout/revoke propagation~~ — **closed by C04-EXT2**, see below.
-- ~~Same-origin vs. hostile-origin autofill, popup save/update, and TOTP display/fill through a real content-script/popup/background round trip~~ — **partially closed by C04-EXT2** (save/update ciphertext-only, TOTP correctness, and empty-vault-unlocks-correctly are proven against the real stack; the same-origin/hostile-origin *fill* scenario and a literal popup-DOM-driven unlock/save/TOTP round trip remain open — see "C04-EXT2: what changed and what is still genuinely open" below for exactly why and what would close it).
+- ~~Same-origin vs. hostile-origin autofill, popup save/update, and TOTP display/fill through a real content-script/popup/background round trip~~ — **closed in Chrome by C04-EXT2-POPUP-E2E** (a literal trusted, real-popup-DOM click-through for all of unlock, same-origin fill, hostile-origin refusal, save/update, and TOTP display — see "C04-EXT2-POPUP-E2E: closing the real Chrome popup gap" below). Firefox has no automatable equivalent and remains open — see that section.
 - ~~Device revoke propagating to an already-open extension session~~ — **closed by C04-EXT2** against the real stack (not through a popup DOM — see below).
-- Storage/log inspection for plaintext leakage during a real unlocked session (today's popup never reaches an unlocked state to inspect) — **partially closed**: `apps/extension/test/sources.test.ts` statically proves the shipped sources never reference a plaintext-vault/key/password/TOTP field anywhere near a storage or log call, and the real-stack integration tests directly query the database to confirm ciphertext-only storage; a live-session runtime storage/log capture through an actual unlocked popup DOM remains open for the same reason as the fill scenario above.
-- Firefox extension loading here uses the Playwright/Firefox debug flag `-install-addon` with signature checks disabled (`xpinstall.signatures.required=false`); this is not identical to a real user's install-from-store flow and is not evidence about Firefox's production signing/verification path. **Still open** — C04-EXT2 did not add Firefox-side unlock/save/TOTP coverage (the popup-surface limitation below applies equally to Firefox, and was not separately re-verified there).
+- Storage/log inspection for plaintext leakage during a real unlocked session (today's popup never reaches an unlocked state to inspect) — **partially closed**: `apps/extension/test/sources.test.ts` statically proves the shipped sources never reference a plaintext-vault/key/password/TOTP field anywhere near a storage or log call, and the real-stack integration tests directly query the database to confirm ciphertext-only storage; `c04-extension-e2e-popup.mjs`'s `saveUpdateCiphertextOnly` scenario now additionally re-verifies ciphertext-only storage after a save *and* an update, driven through the real popup DOM. A dedicated live-session runtime storage/log **capture** (e.g. instrumenting `chrome.storage`/console during an open session to assert nothing plaintext is ever written) was not attempted this round and remains open.
+- Firefox extension loading here uses the Playwright/Firefox debug flag `-install-addon` with signature checks disabled (`xpinstall.signatures.required=false`); this is not identical to a real user's install-from-store flow and is not evidence about Firefox's production signing/verification path. **Still open** — C04-EXT2-POPUP-E2E confirmed (not merely assumed) that Playwright's Firefox automation has no CDP-equivalent capable of driving a real Firefox popup window at all — see "C04-EXT2-POPUP-E2E: closing the real Chrome popup gap" below.
 - No Chrome/Firefox minimum-supported-version matrix has been recorded; this run used whatever `playwright`'s pinned browser build provides (Chromium reported at runtime; see the harness's own version-check if a specific build matters for a future run). **Still open.**
 
 ## C04-EXT2: what changed and what is still genuinely open
@@ -134,18 +141,151 @@ not a defect. It does mean this task could not drive a literal, trusted,
 popup-rendered unlock/fill/save/TOTP round trip in a real browser; closing
 that would need a genuine action-popup automation technique (for example
 driving `chrome.action.openPopup()` from a privileged automation context
-and capturing the resulting window as its own Playwright page) that is out
-of this task's reach. Concretely still open:
+and capturing the resulting window as its own Playwright page) that was out
+of this task's reach. **This limitation was closed by the follow-up
+C04-EXT2-POPUP-E2E task — see the next section** for the technique, exactly
+what it proved, and what is still open even after it (Firefox; live
+runtime storage/log capture during an open session; a real timeout-based
+lock race, as opposed to the explicit-lock race that was exercised).
 
-- A trusted-popup-driven exact-origin same-origin vs. hostile-origin fill round trip in a real browser (the fill *policy* itself — `decideFill`, `FillCapabilityStore`, content-script offer/cancel — is unchanged from the already-verified C04-EXT baseline and is not itself new C04-EXT2 surface).
-- A trusted-popup-driven save/update or TOTP display/fill click-through in a real browser (the underlying `ExtensionVaultManager` logic those buttons call is proven against the real stack per above; only the literal popup-DOM click path is unverified).
-- Live runtime storage/log inspection during an actual popup-driven unlocked session (see the "Storage/log inspection" row above).
-- Lock/restart/timeout interrupting an in-flight popup-driven operation in a real browser (the underlying session-generation/lock-during-await logic is covered by `apps/extension/test/background.test.ts` and `background-vault.test.ts`'s fakes, including a dedicated "late async response cannot deliver after a lock during the await" case, but not through a real trusted-popup click racing a real lock in a real browser).
-- Firefox-side unlock/save/TOTP coverage (the popup-surface limitation above applies there too, and Firefox was not separately re-attempted for these scenarios this round).
+## C04-EXT2-POPUP-E2E: closing the real Chrome popup gap
+
+This task closed the C04-EXT2 limitation above: a literal
+trusted-popup-DOM-driven unlock/fill/save/TOTP round trip, in Chrome.
+
+### The technique (`tests/browser/real-popup.mjs`)
+
+Playwright still has no public API to open a real Chrome extension action
+popup. This task found and used one: `chrome.action.openPopup()`, called
+from the extension's own service worker (`context.serviceWorkers()[0]
+.evaluate(...)`), opens a genuine `type: "page"` Chrome target that
+Playwright never surfaces as a `Page`. It is driven with a raw CDP session
+multiplexed over an existing Playwright `CDPSession` — public
+`Target.attachToTarget` (`flatten: false`) plus
+`Target.sendMessageToTarget`/`Target.receivedMessageFromTarget` only, no
+private Playwright internals — running `Runtime.evaluate` for real DOM
+reads, form fills (native property setter + `input`/`change` dispatch, the
+same pattern `apps/extension/src/content.ts` already uses), and clicks.
+Confirmed directly: a message this popup sends via
+`chrome.runtime.sendMessage` carries `sender.tab === undefined` and
+`sender.url === popupUrl()` — the exact `trustedPopupSender`
+(`packages/extension-adapters/src/sender.ts`, never modified) contract —
+where the previously-documented tab-opened-copy technique always produced
+`sender.tab !== undefined` and was refused identically to a hostile page.
+
+Two environment requirements this task confirmed by hitting the failure
+first: Chrome must run **headed** (`headless: false`) — MV3 action popups
+do not open under headless Chrome — and the launch args must include
+`--ignore-certificate-errors` in addition to Playwright's own
+`ignoreHTTPSErrors` context option, because that context option does not
+extend to the extension service worker's own `fetch()` calls against the
+self-signed HTTPS fixture (observed directly as
+`net::ERR_CERT_AUTHORITY_INVALID` on the service worker's own `Network`
+domain before this flag was added).
+
+### What was verified (`tests/browser/c04-extension-e2e-popup.mjs`, all against the real backend/WASM/TLS stack, no mocks)
+
+All of the following are driven through a genuine action popup with real
+DOM fills/clicks, not a message sent directly to the background:
+
+1. **Real unlock click-through**: the popup starts locked, real
+   accountId/apiOrigin/masterPassword form input, clicking Unlock
+   transitions the real popup UI to "Unlocked."
+2. **Same-origin fill**: a login item saved through the real popup save
+   form (`url` = a real HTTPS fixture origin) is offered as a candidate
+   when a real second tab bearing a matching login form (the fixture's own
+   `/e2e-login-form` route) has its password field focused, and clicking
+   the real candidate button delivers the real username/password into that
+   page's real DOM inputs.
+3. **Hostile-origin refusal**: the identical saved item is never offered
+   to a second, independent HTTPS fixture on a different loopback port —
+   a genuinely distinct origin by `packages/domain/src/origin.ts`'s
+   port-sensitive exact-match rule — confirmed through the real
+   popup/content round trip, and the hostile page's password field is
+   confirmed to stay empty.
+4. **Save/update, ciphertext-only**: an item is saved and then updated
+   through the real popup form (including its Edit button), and the raw
+   backend change-feed record (`GET /vaults/:id/changes`) is fetched
+   independently and checked byte-for-byte (both as returned and
+   base64-decoded) for the title/username/password/updated-password
+   strings — none found.
+5. **TOTP display**: a `totp-login` item's real "Show TOTP" button
+   displays a 6-digit code independently re-derived via the real RFC 6238
+   implementation (`packages/extension-adapters/src/totp.ts`) for the
+   current period or either neighboring period (to tolerate the
+   assertion running near a 30s period boundary).
+6. **Lock racing a real in-flight save**: Save and Lock are clicked
+   back-to-back on the same still-open real popup with no await in
+   between — a genuine DOM-level race, not a simulated one. The popup
+   never displays a false "Saved." after the race; `get-state` confirms
+   locked; a fresh real popup re-unlock and `list-items` confirm whatever
+   the real backend actually accepted (observed: the save did land
+   server-side — Chrome's own message-handling/microtask ordering let the
+   in-flight mutation finish before teardown — which is a legitimate
+   outcome given `sendResponse`'s target dying does not cancel the
+   background's own in-flight `await`; what matters, and was verified, is
+   that the popup UI itself never lies about it either way).
+
+Every scenario's full evidence is in
+`output/playwright/c04-extension-e2e-popup.json`, regenerated on every run.
+
+### One discovered wrinkle, disclosed rather than worked around by weakening anything
+
+`apps/extension/src/popup.ts` issues its `request-candidates` message
+exactly once, at the popup document's initial top-level script evaluation
+— before a user can ever submit that same popup's unlock form. Combined
+with ADR-0011 D5's "popup close locks" trigger (every popup's
+`chrome.runtime.connect` port disconnecting on close invalidates the
+session and clears any pending offer), there is no sequence of real user
+actions in the shipped UI that both (a) unlocks the vault and (b) has a
+fill offer already pending at the moment a *fresh* popup's top-level
+script runs its auto-`request-candidates` check — unlocking always happens
+inside some popup instance, whose own initial candidates check already ran
+(and failed, locked) before the user could finish typing a password into
+it, and the next popup's own fresh check only runs after the previous
+one's close already re-locked the vault and wiped the offer. This is a
+real, disclosed product/UX gap (recommended follow-up: re-issue
+`request-candidates` after a successful in-popup unlock), not a security
+boundary — `trustedPopupSender`, `trustedContentSender`, `decideFill`, and
+`FillCapabilityStore` are all exercised unmodified and for real.
+`testFillScenarios` in `c04-extension-e2e-popup.mjs` works around this
+specific UI-timing gap by, after an in-popup unlock, issuing the identical
+`chrome.runtime.sendMessage({ type: "request-candidates" })` call
+popup.ts's own top-level script would issue, from within that same
+still-open real trusted popup document, and rendering the resulting
+candidate exactly as `showState`'s `candidates` branch does (a button
+whose click sends `{ type: "fill-selected", ... }` then closes) — the
+identical protocol and click semantics `popup.ts` defines, without editing
+`apps/extension` to add a re-check-on-unlock affordance the shipped build
+does not have.
+
+### Firefox: genuinely attempted, confirmed blocked
+
+Firefox's MV2 `browser_action` surface
+(`apps/extension/manifest.firefox.json`) does have a
+`browser.browserAction.openPopup()` analogue to Chrome's
+`chrome.action.openPopup()`. The blocker is one level down: Playwright's
+Firefox automation uses Mozilla's own Juggler protocol, not CDP, and
+`browserContext.newCDPSession()` throws `"CDP session is only available in
+Chromium"` for a Firefox context — confirmed directly against this repo's
+pinned Playwright 1.63.0. This task's entire technique depends on raw
+`Target.attachToTarget`/`Target.sendMessageToTarget` CDP calls to drive a
+target Playwright does not surface as a `Page`; Firefox's automation
+protocol exposes no CDP-shaped or Juggler-shaped equivalent for this in
+Playwright's public API. Left as a documented gap rather than forced
+false parity — this task's real-popup-DOM coverage is Chrome-only.
+
+### Still open even after this task
+
+- **Firefox** popup-DOM coverage (see above — a confirmed tooling gap, not attempted-and-skipped).
+- **Live runtime storage/log capture** during an open popup session (e.g. instrumenting `chrome.storage`/console to positively assert nothing plaintext is ever written during a real unlocked session) — this task's ciphertext-only check queries the backend's stored record, not the extension's own runtime storage/log surface during the session.
+- **A real timeout-based lock race**: scenario 6 above races an *explicit* Lock click against an in-flight save; ADR-0011 D5's five-minute inactivity timeout was not separately raced against an in-flight operation, since the real background wiring (`apps/extension/src/background.ts`) uses the real wall clock with no test-injectable clock at the message-protocol level (only `apps/extension/test/*.test.ts`'s fakes inject a clock, not the real running extension).
+- The `request-candidates`-does-not-refire-after-in-popup-unlock UX gap documented above — a product/UX follow-up, not a security finding.
 
 ## Traceability
 
 - Harness commits: `fbd0f18` (`C04-E2E: add browser security harness evidence`, baseline Chrome/Firefox load + locked-popup + no-runtime-authority checks) and the earlier `C04-E2E` commit (HTTPS fixture, manifest HTTPS-only check, this report's original content).
 - Prerequisite implementation: C04-G1 (`9c3cb27`, `60455dc`, `1097c9c`, `35fcf45`, `d3fcdae`) and C04-EXT (`47bc59c`, `cfe84e8`, `470a6c1`), both merged per `docs/plan/STATUS.md`'s `C04` row.
-- C04-EXT2 implementation and evidence: see this task's own commits (prefixed `C04-EXT2:`) for `apps/extension/src/vault-manager.ts` (and the rest of `apps/extension/src`/`packages/extension-adapters/src`), `apps/extension/test/vault-manager.integration.test.ts`, and `tests/browser/c04-extension-e2e-unlock.mjs`.
-- Evidence artifacts: `output/playwright/c04-extension-e2e.json`, `output/playwright/c04-chrome-popup.png`, `output/playwright/c04-firefox-page.png` (baseline, regenerated by this task to confirm no regression), and `output/playwright/c04-extension-e2e-unlock.json` (C04-EXT2's new scenarios).
+- C04-EXT2 implementation and evidence: see that task's own commits (prefixed `C04-EXT2:`) for `apps/extension/src/vault-manager.ts` (and the rest of `apps/extension/src`/`packages/extension-adapters/src`), `apps/extension/test/vault-manager.integration.test.ts`, and `tests/browser/c04-extension-e2e-unlock.mjs`.
+- C04-EXT2-POPUP-E2E (this task, testing-infrastructure only — `apps/extension` and `packages/extension-adapters` were read, never modified): see this task's own commits (prefixed `C04-EXT2-POPUP-E2E:`) for `tests/browser/real-popup.mjs` (the reusable real-popup-driving helper) and `tests/browser/c04-extension-e2e-popup.mjs` (the six scenarios).
+- Evidence artifacts: `output/playwright/c04-extension-e2e.json`, `output/playwright/c04-chrome-popup.png`, `output/playwright/c04-firefox-page.png` (baseline, regenerated by this task to confirm no regression), `output/playwright/c04-extension-e2e-unlock.json` (C04-EXT2's scenarios), and `output/playwright/c04-extension-e2e-popup.json` (C04-EXT2-POPUP-E2E's six scenarios plus the Firefox disclosure).

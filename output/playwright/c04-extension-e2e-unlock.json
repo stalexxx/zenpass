@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-06T00:58:35.136Z",
+  "generatedAt": "2026-09-06T07:20:04.875Z",
   "scenarios": {
     "realStackUnlock": {
       "verified": true,
-      "accountId": "acct-af91e8e1-64c0-4e18-bded-e050364525e0"
+      "accountId": "acct-e2d1dc49-8d56-4a79-9a59-77f48bf7d03e"
     },
     "untrustedPopupSenderRefused": {
       "verified": true,

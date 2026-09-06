@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-06T00:58:24.931Z",
+  "generatedAt": "2026-09-06T07:20:01.541Z",
   "results": [
     {
       "browser": "chromium",
-      "extensionId": "gaedppcgljkmjobleaghfhncpioopcjf",
+      "extensionId": "pneljljafpoolkfjpgpocdalfiecbkhp",
       "checks": [
         "extension service worker loaded",
         "page has no runtime authority",
@@ -22,7 +22,7 @@
   ],
   "httpsFixture": {
     "verified": true,
-    "url": "https://127.0.0.1:54066"
+    "url": "https://127.0.0.1:53787"
   },
   "manifestHttpsOnly": {
     "verified": true,

@@ -1,0 +1,51 @@
+{
+  "generatedAt": "2026-09-06T07:19:46.606Z",
+  "scenarios": {
+    "realUnlockClickThrough": {
+      "verified": true,
+      "initialText": "ZKPM",
+      "unlockedContains": true
+    },
+    "sameOriginFill": {
+      "verified": true,
+      "filledUsername": "user-b6dfa028",
+      "filledPasswordMatches": true
+    },
+    "hostileOriginRefusal": {
+      "verified": true,
+      "response": {
+        "type": "refused",
+        "reason": "no-exact-origin-match"
+      },
+      "pageStillEmpty": true
+    },
+    "saveUpdateCiphertextOnly": {
+      "verified": true,
+      "itemId": "a7c5b7f4-d1f8-4a4c-a692-ee822fbbc51e",
+      "rawRecordCount": 1,
+      "leaks": []
+    },
+    "totpThroughRealPopup": {
+      "verified": true,
+      "displayedCode": "363087",
+      "secondsRemaining": "9",
+      "fullDisplayText": "ZKPM\n\nSaved.\n\nE2E same-origin login (user-b6dfa028)Edit\nSecret Title 0c64ba95-014c-4dd7-b585-b9a9c6c12915 (secret-user-424643fc-0146-4a88-b148-7c819d66f650)Edit\nE2E TOTP login (totp-user)EditShow TOTP\nSave item\nTitle  Type \nLogin\nLogin with TOTP\nNote\n Username  Password  URL  Notes  TOTP secret (base32)  Save\n\nEditing an existing item requires re-entering its password/notes/TOTP secret — the background never sends a decrypted secret back to this popup except when you explicitly request the current TOTP code below.\n\n363087 (expires in 9s)\nLog out\nLock vault",
+      "candidates": [
+        "136238",
+        "363087",
+        "171070"
+      ]
+    },
+    "lockRacesInFlightSave": {
+      "verified": true,
+      "lockedAfterRace": true,
+      "neverClaimedSavedAfterLock": true,
+      "raceItemLandedServerSide": true
+    }
+  },
+  "firefox": {
+    "attempted": true,
+    "verified": false,
+    "reason": "Genuinely attempted and confirmed blocked, not merely undocumented: Playwright's Firefox automation uses Mozilla's own Juggler protocol, not CDP, and `browserContext.newCDPSession()` throws \"CDP session is only available in Chromium\" for a Firefox context (confirmed directly against this repo's pinned Playwright 1.63.0). Even though Firefox's MV2 `browser_action` surface (apps/extension/manifest.firefox.json) has a `browser.browserAction.openPopup()` analogue to Chrome's `chrome.action.openPopup()`, this task's whole technique (real-popup.mjs) depends on raw `Target.attachToTarget`/`Target.sendMessageToTarget` CDP calls to drive a target Playwright does not surface as a `Page` — a mechanism Firefox's automation protocol does not expose at all. No CDP-shaped or Juggler-shaped equivalent was found in Playwright's public API surface. Left as a documented gap rather than forcing false parity; Chrome-only for this task."
+  }
+}
