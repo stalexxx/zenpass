@@ -67,6 +67,19 @@ export async function startHttpsFixture({ databaseUrl }) {
     authRateLimitWindowSeconds: 300
   });
   const app = buildApp(config, { pool });
+  // Test-only static page for the browser E2E's same-origin/hostile-origin
+  // autofill scenarios: a real HTML login form served from this fixture's
+  // own HTTPS origin (not a mocked/injected `about:blank` DOM), so the
+  // extension's real origin-matching logic runs against an actual
+  // same-origin document instead of never seeing a real navigation.
+  app.get('/e2e-login-form', async (_request, reply) => {
+    reply.type('text/html').send(
+      '<!doctype html><html><body><form action="/e2e-login-submit" method="post">' +
+      '<input name="username" autocomplete="username">' +
+      '<input name="password" type="password" autocomplete="current-password">' +
+      '</form></body></html>'
+    );
+  });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const httpAddress = app.server.address();
   const httpPort = typeof httpAddress === 'object' && httpAddress ? httpAddress.port : 0;
