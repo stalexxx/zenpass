@@ -9,9 +9,17 @@ publish = false
 [lib]
 crate-type = ["cdylib", "lib"]
 
+# D02-MVP: mechanical Kotlin-bindings generator binary (uniffi's standard
+# "library mode" bindgen entry point), needed to produce
+# apps/android's UniFFI-generated Kotlin wrapper around this crate's
+# `cdylib`. Generates code only; it does not change what the library exports.
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+
 [dependencies]
 crypto-core = { path = "../crypto-core" }
-uniffi = "=0.29.5"
+uniffi = { version = "=0.29.5", features = ["cli"] }
 thiserror = "=2.0.18"
 zeroize = "=1.9.0"
 

@@ -18,6 +18,16 @@ use crypto_core::keys::{
 use crypto_core::Error;
 use zeroize::Zeroizing;
 
+// D02-MVP: byte-in/byte-out UniFFI wrappers around `crypto_core::opaque`'s
+// existing client helpers, mirroring `packages/crypto-wasm/src/lib.rs`'s
+// `client_registration_start/finish`/`client_login_start/finish` wasm-bindgen
+// exports (ADR-0007's precedent for the wasm boundary; this is the same
+// mechanical wrapping for the UniFFI/JNI boundary). No new cryptography;
+// `apps/android` owns the HTTP register/login choreography and session
+// handling exactly as `packages/sdk`'s `AuthClient` does for the extension —
+// this module only ever returns/consumes protocol message bytes and opaque
+// state bytes, never a password or derived key.
+
 uniffi::setup_scaffolding!();
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
@@ -210,7 +220,18 @@ impl ItemSession {
     }
 
     /// End this capability's lifetime. Repeated closes are harmless.
-    pub fn close(&self) -> Result<(), CryptoFfiError> {
+    ///
+    /// D02-MVP note: named `close_session` rather than `close` — UniFFI's
+    /// Kotlin generator always makes every `uniffi::Object` implement
+    /// `AutoCloseable`/`Disposable` (for `.use { }`/try-with-resources
+    /// support), which declares its own `close(): Unit`. An object method
+    /// also literally named `close` collides with that generated override
+    /// and fails to compile in Kotlin ("Conflicting overloads"). This is a
+    /// Kotlin/UniFFI-codegen compatibility rename only — no behavior,
+    /// signature, or semantics changed — done now because this task is the
+    /// first consumer of crypto-ffi's Kotlin bindings and hits the
+    /// collision immediately.
+    pub fn close_session(&self) -> Result<(), CryptoFfiError> {
         let mut key = self.key.lock().map_err(|_| CryptoFfiError::Internal)?;
         *key = None;
         Ok(())
@@ -245,6 +266,103 @@ pub fn inspect(envelope: Vec<u8>) -> Result<EnvelopeMetadata, CryptoFfiError> {
     })
 }
 
+/// Result of [`opaque_client_registration_start`]: `message` is the
+/// `RegistrationRequest` to send as the first leg's `clientMessage` to
+/// `/auth/opaque/register`; `state` is opaque bytes to hold and pass
+/// unmodified to [`opaque_client_registration_finish`].
+#[derive(uniffi::Record)]
+pub struct OpaqueClientRegistrationStart {
+    pub message: Vec<u8>,
+    pub state: Vec<u8>,
+}
+
+/// Result of [`opaque_client_registration_finish`]: `message` is the
+/// `RegistrationUpload` to send as the second leg's `clientMessage`.
+#[derive(uniffi::Record)]
+pub struct OpaqueClientRegistrationFinish {
+    pub message: Vec<u8>,
+}
+
+/// Result of [`opaque_client_login_start`]: `message` is the KE1 to send as
+/// the first leg's `clientMessage` to `/auth/opaque/login`; `state` is
+/// opaque bytes to hold and pass unmodified to
+/// [`opaque_client_login_finish`].
+#[derive(uniffi::Record)]
+pub struct OpaqueClientLoginStart {
+    pub message: Vec<u8>,
+    pub state: Vec<u8>,
+}
+
+/// Result of [`opaque_client_login_finish`]: `message` is the KE3 to send as
+/// the second leg's `clientMessage`.
+#[derive(Debug, uniffi::Record)]
+pub struct OpaqueClientLoginFinish {
+    pub message: Vec<u8>,
+}
+
+/// Start OPAQUE client registration. `password` is zeroized on the Rust
+/// side after use; the caller-owned Kotlin buffer cannot be wiped across
+/// the JNI boundary.
+#[uniffi::export]
+pub fn opaque_client_registration_start(
+    password: Vec<u8>,
+) -> Result<OpaqueClientRegistrationStart, CryptoFfiError> {
+    let password = Zeroizing::new(password);
+    let result = crypto_core::opaque::client_registration_start(&password)?;
+    Ok(OpaqueClientRegistrationStart {
+        message: result.message.clone(),
+        state: result.state_bytes().to_vec(),
+    })
+}
+
+/// Finish OPAQUE client registration against the server's first-leg
+/// response.
+#[uniffi::export]
+pub fn opaque_client_registration_finish(
+    state: Vec<u8>,
+    password: Vec<u8>,
+    response: Vec<u8>,
+) -> Result<OpaqueClientRegistrationFinish, CryptoFfiError> {
+    let password = Zeroizing::new(password);
+    let state = crypto_core::opaque::client_registration_state(&state)?;
+    let result = crypto_core::opaque::client_registration_finish(state, &password, &response)?;
+    Ok(OpaqueClientRegistrationFinish {
+        message: result.message,
+    })
+}
+
+/// Start OPAQUE client login.
+#[uniffi::export]
+pub fn opaque_client_login_start(
+    password: Vec<u8>,
+) -> Result<OpaqueClientLoginStart, CryptoFfiError> {
+    let password = Zeroizing::new(password);
+    let result = crypto_core::opaque::client_login_start(&password)?;
+    Ok(OpaqueClientLoginStart {
+        message: result.message.clone(),
+        state: result.state_bytes().to_vec(),
+    })
+}
+
+/// Finish OPAQUE client login against the server's KE2 challenge. `context`
+/// must be the exact same application-context bytes the server uses
+/// (`OPAQUE_CONTEXT = "zkpm-opaque-v1"` in `apps/backend/src/auth/routes.mjs`)
+/// or the real backend rejects the login generically.
+#[uniffi::export]
+pub fn opaque_client_login_finish(
+    state: Vec<u8>,
+    password: Vec<u8>,
+    response: Vec<u8>,
+    context: Vec<u8>,
+) -> Result<OpaqueClientLoginFinish, CryptoFfiError> {
+    let password = Zeroizing::new(password);
+    let state = crypto_core::opaque::client_login_state(&state)?;
+    let result = crypto_core::opaque::client_login_finish(state, &password, &response, &context)?;
+    Ok(OpaqueClientLoginFinish {
+        message: result.message,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -261,7 +379,7 @@ mod tests {
                 .unwrap(),
             vec![1, 2]
         );
-        session.close().unwrap();
+        session.close_session().unwrap();
         assert!(matches!(
             session.seal_item_payload("acct".into(), "vault".into(), "item".into(), 1, vec![1]),
             Err(CryptoFfiError::Locked)
@@ -312,6 +430,102 @@ mod tests {
                 .unwrap(),
             vec![3]
         );
+    }
+
+    #[test]
+    fn opaque_ffi_wrappers_round_trip_registration_and_login() {
+        use crypto_core::opaque::{
+            server_login_finish, server_login_start, server_registration_finish,
+            server_registration_start, ServerSetupHandle,
+        };
+
+        let setup = ServerSetupHandle::generate();
+        let credential_identifier = b"credential-identifier";
+        let password = b"CorrectHorseBatteryStaple".to_vec();
+
+        let reg_start = opaque_client_registration_start(password.clone()).unwrap();
+        let server_reg =
+            server_registration_start(&setup, &reg_start.message, credential_identifier).unwrap();
+        let reg_finish = opaque_client_registration_finish(
+            reg_start.state,
+            password.clone(),
+            server_reg.message,
+        )
+        .unwrap();
+        let password_file = server_registration_finish(&reg_finish.message).unwrap();
+
+        let context = b"zkpm-opaque-v1".to_vec();
+        let login_start = opaque_client_login_start(password.clone()).unwrap();
+        let server_login = server_login_start(
+            &setup,
+            &password_file,
+            credential_identifier,
+            &login_start.message,
+            &context,
+        )
+        .unwrap();
+        let server_login_state_bytes = server_login.state_bytes();
+        let login_finish = opaque_client_login_finish(
+            login_start.state,
+            password,
+            server_login.message,
+            context.clone(),
+        )
+        .unwrap();
+        // Server-side finish accepts the client's KE3; a successful call
+        // proves the wrappers produced a valid transcript end-to-end.
+        server_login_finish(
+            crypto_core::opaque::server_login_state(&server_login_state_bytes).unwrap(),
+            &login_finish.message,
+            &context,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn opaque_ffi_wrapper_wrong_password_fails_generically() {
+        use crypto_core::opaque::{
+            server_login_start, server_registration_finish, server_registration_start,
+            ServerSetupHandle,
+        };
+
+        let setup = ServerSetupHandle::generate();
+        let credential_identifier = b"credential-identifier";
+        let password = b"CorrectHorseBatteryStaple".to_vec();
+
+        let reg_start = opaque_client_registration_start(password.clone()).unwrap();
+        let server_reg =
+            server_registration_start(&setup, &reg_start.message, credential_identifier).unwrap();
+        let reg_finish =
+            opaque_client_registration_finish(reg_start.state, password, server_reg.message)
+                .unwrap();
+        let password_file = server_registration_finish(&reg_finish.message).unwrap();
+
+        let context = b"zkpm-opaque-v1".to_vec();
+        let wrong_password = b"WrongHorseBatteryStaple".to_vec();
+        let login_start = opaque_client_login_start(wrong_password.clone()).unwrap();
+        let server_login = server_login_start(
+            &setup,
+            &password_file,
+            credential_identifier,
+            &login_start.message,
+            &context,
+        )
+        .unwrap();
+        let err = opaque_client_login_finish(
+            login_start.state,
+            wrong_password,
+            server_login.message,
+            context,
+        )
+        .unwrap_err();
+        assert!(matches!(err, CryptoFfiError::AuthenticationFailed));
+    }
+
+    #[test]
+    fn opaque_ffi_wrapper_corrupt_state_bytes_are_invalid_encoding() {
+        let err = opaque_client_login_finish(vec![0u8; 8], vec![1], vec![1], vec![1]).unwrap_err();
+        assert!(matches!(err, CryptoFfiError::InvalidEncoding));
     }
 
     fn hex(value: &str) -> Vec<u8> {

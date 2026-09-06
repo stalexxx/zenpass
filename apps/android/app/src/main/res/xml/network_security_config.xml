@@ -1,0 +1,22 @@
+<network-security-config>
+    <!-- Production/base config: system CAs only, matching
+         android:usesCleartextTraffic="false" in the manifest. -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificate src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- D02-MVP manual on-emulator evidence run only: Android's own
+         "debug-overrides" mechanism trusts a user-installed CA certificate
+         in debug builds only (this block is inert in a release build,
+         regardless of debuggable-flag tampering — release builds don't
+         merge debug-overrides at all). This lets a debug build validate
+         tests/browser/https-fixture.mjs's freshly-generated self-signed
+         certificate for a real end-to-end unlock demo against a real
+         backend, without weakening the production trust model at all. -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificate src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

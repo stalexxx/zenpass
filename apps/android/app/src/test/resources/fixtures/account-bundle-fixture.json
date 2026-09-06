@@ -1,0 +1,12 @@
+{
+  "password": "correct horse battery staple",
+  "accountId": "acct-fixture-01",
+  "vaultId": "vault-fixture-01",
+  "itemId": "item-fixture-01",
+  "reportedPhysicalMemoryKib": 262144,
+  "kdfParametersCbor": "b64:pwFoYXJnb24yaWQCEwMaAAEAAAQDBQEGUAAAAAAAAAAAAAAAAAAAAAAHGCA=",
+  "wrappedAccountKey": "b64:pgFyY3J5cHRvLWVudmVsb3BlL3YxAmxhY2NvdW50LXdyYXADAQRYGMTr/d8ZM6/Y8SBOMXpaS6IMc9m4ZQqX0QVYMDF4OZJSjA6LjAVsZyt8/2zQypwlEiC/HrqqPrGBd1wVJfZ/luMiJZW5ijJD9Mlh9QZYOqYBcmNyeXB0by1lbnZlbG9wZS92MQJvYWNjdC1maXh0dXJlLTAxA/YE9gVsYWNjb3VudC13cmFwBgE=",
+  "wrappedVaultKey": "b64:pgFyY3J5cHRvLWVudmVsb3BlL3YxAmp2YXVsdC13cmFwAwEEWBjWFxemGTlRCrzupi4BN8/7VDTUbqjIBMkFWDCO7j0VWWFUzhCFcEi5VPiOBMqJhZsM11M8CBpitnTOs5jNEWrehHeZhu+M9GGHp+kGWEimAXJjcnlwdG8tZW52ZWxvcGUvdjECb2FjY3QtZml4dHVyZS0wMQNwdmF1bHQtZml4dHVyZS0wMQT2BWp2YXVsdC13cmFwBgE=",
+  "wrappedItemKey": "b64:pgFyY3J5cHRvLWVudmVsb3BlL3YxAmlpdGVtLXdyYXADAQRYGCvYmYX0GQZCRow3UcQUP5V5yuzjCDHhMwVYMLDYBnzfoAPpC47EgiMDhBznhhAv2FMcrLlFqd/IwzYIUEWsqp13Fdm1I64RZT3tlAZYVqYBcmNyeXB0by1lbnZlbG9wZS92MQJvYWNjdC1maXh0dXJlLTAxA3B2YXVsdC1maXh0dXJlLTAxBG9pdGVtLWZpeHR1cmUtMDEFaWl0ZW0td3JhcAYB",
+  "wrappedRecoveryKey": "b64:q6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urqw=="
+}
