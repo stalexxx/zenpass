@@ -30,13 +30,17 @@ for (const [label, file, version] of [["Chrome", "manifest.chrome.json", 3], ["F
   });
 }
 
-test("Chrome permission budget is limited to the active tab and HTTPS host access", async () => {
+test("Chrome permission budget is limited to the active tab, non-secret account/API-origin storage, and HTTPS host access", async () => {
   const value = await manifest("manifest.chrome.json");
-  expect(value.permissions).toEqual(["activeTab"]);
+  // `storage` (ADR-0011 D1/D4) is reserved for the extension's own
+  // non-secret accountId/apiOrigin association only — see
+  // apps/extension/src/storage.ts and its tests; never vault/key/password/
+  // TOTP material.
+  expect(value.permissions).toEqual(["activeTab", "storage"]);
   expect(value.host_permissions).toEqual(["https://*/*"]);
 });
 
 test("Firefox permission budget contains no unreviewed permissions", async () => {
   const value = await manifest("manifest.firefox.json");
-  expect(value.permissions).toEqual(["activeTab", "https://*/*"]);
+  expect(value.permissions).toEqual(["activeTab", "storage", "https://*/*"]);
 });

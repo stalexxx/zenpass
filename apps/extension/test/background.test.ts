@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { BackgroundPolicy } from "../src/background.ts";
 import type { LoginCandidate, VaultCandidateSource } from "../../../../packages/extension-adapters/src/index.ts";
+import { createInMemoryAssociationStorage } from "../src/storage.ts";
 
 /**
  * Boundary tests for the trusted background. Placeholder field values in
  * the fake vault are empty strings: no real or realistic secret is fixed
- * here, and no production unlock path exists.
+ * here. `handlePopupMessage` is always asynchronous (independent unlock,
+ * save/update, and TOTP are all inherently async), so every call below is
+ * awaited before its result is inspected.
  */
 const ownId = "ext-id";
 const popupUrl = `chrome-extension://${ownId}/popup.html`;
@@ -35,19 +38,37 @@ function policy(vault: VaultCandidateSource | null = fakeVault([{ id: "entry", t
       return true;
     },
     vault,
+    associationStorage: createInMemoryAssociationStorage(),
   });
-  // Tests exercise the capability flow through the C04-G1 unlock seam;
-  // production has no caller for markUnlocked until that merge.
+  // Tests exercise the capability flow through the vault-manager seam
+  // directly; a minimal fakeVault (candidatesFor/fieldsFor only) has no
+  // `unlock` method, so production's own unlock path is covered by
+  // vault-manager.test.ts instead.
   if (vault) p.session.markUnlocked();
   return { p, sent, setActive: (value: typeof active) => { active = value; } };
 }
 
+async function requestId(p: BackgroundPolicy): Promise<string> {
+  const response = await p.handlePopupMessage({ type: "request-candidates" }, popupSender);
+  if (response.type !== "candidates") throw new Error(`expected candidates, got ${response.type}`);
+  return response.requestId;
+}
+
 describe("production default: locked, no vault source", () => {
-  test("every content offer is refused and no candidates exist", () => {
+  test("every content offer is refused and no candidates exist", async () => {
     const { p } = policy(null);
     expect(p.handleContentMessage(offerMessage, contentSender)).toEqual({ type: "refused", reason: "locked" });
-    const requestId2 = (p.handlePopupMessage({ type: "request-candidates" }, popupSender) as { requestId: string }).requestId;
-    expect(p.handlePopupMessage({ type: "get-state" }, popupSender)).toEqual({ type: "state", locked: true, unlockAvailable: false });
+    expect(await p.handlePopupMessage({ type: "request-candidates" }, popupSender)).toEqual({ type: "locked" });
+    expect(await p.handlePopupMessage({ type: "get-state" }, popupSender)).toEqual({ type: "state", locked: true, unlockAvailable: false, savedAccount: null });
+  });
+
+  test("unlock/save/list-items/get-totp are all refused as unavailable against a minimal fakeVault", async () => {
+    const { p } = policy();
+    expect(await p.handlePopupMessage({ type: "unlock", accountId: "a", apiOrigin: "https://api.test", password: [1] }, popupSender))
+      .toEqual({ type: "refused", reason: "unlock-unavailable" });
+    expect(await p.handlePopupMessage({ type: "list-items" }, popupSender)).toEqual({ type: "refused", reason: "unlock-unavailable" });
+    expect(await p.handlePopupMessage({ type: "get-totp", itemId: "x" }, popupSender)).toEqual({ type: "refused", reason: "unlock-unavailable" });
+    expect(await p.handlePopupMessage({ type: "save-item", title: "T", itemType: "note" }, popupSender)).toEqual({ type: "refused", reason: "unlock-unavailable" });
   });
 });
 
@@ -77,24 +98,22 @@ describe("popup-only selection with one-use capabilities", () => {
   test("full flow grants, consumes once, and targets the exact document", async () => {
     const { p, sent } = policy();
     expect(p.handleContentMessage(offerMessage, contentSender)).toEqual({ type: "offer-available" });
-    const response = p.handlePopupMessage({ type: "request-candidates" }, popupSender);
-    expect(response.type).toBe("candidates");
-    const requestId = (response as { requestId: string }).requestId;
-    expect(await p.handlePopupMessage({ type: "fill-selected", requestId, itemId: "entry" }, popupSender)).toEqual({ type: "locked" });
+    const id = await requestId(p);
+    expect(await p.handlePopupMessage({ type: "fill-selected", requestId: id, itemId: "entry" }, popupSender)).toEqual({ type: "locked" });
     expect(sent).toEqual([{ tabId: 7, documentId: "doc-1", message: { type: "fill", origin: "https://example.test", username: "", password: "" } }]);
     // Replay of the same capability is refused.
-    expect(await p.handlePopupMessage({ type: "fill-selected", requestId, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
+    expect(await p.handlePopupMessage({ type: "fill-selected", requestId: id, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
   });
 
   test("tab switch or navigation between grant and selection fails closed", async () => {
     const { p, sent, setActive } = policy();
     p.handleContentMessage(offerMessage, contentSender);
-    const requestId = (p.handlePopupMessage({ type: "request-candidates" }, popupSender) as { requestId: string }).requestId;
+    const id = await requestId(p);
     setActive({ tabId: 8, origin: "https://example.test" });
-    expect(await p.handlePopupMessage({ type: "fill-selected", requestId, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
+    expect(await p.handlePopupMessage({ type: "fill-selected", requestId: id, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
     setActive(null);
-    const requestId2 = (p.handlePopupMessage({ type: "request-candidates" }, popupSender) as { requestId: string }).requestId;
-    expect(await p.handlePopupMessage({ type: "fill-selected", requestId: requestId2, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
+    const id2 = await requestId(p);
+    expect(await p.handlePopupMessage({ type: "fill-selected", requestId: id2, itemId: "entry" }, popupSender)).toEqual({ type: "refused", reason: "stale-capability" });
     expect(sent).toHaveLength(0);
   });
 
@@ -111,10 +130,10 @@ describe("lock lifecycle", () => {
   test("popup close locks and invalidates outstanding capabilities", async () => {
     const { p, sent } = policy();
     p.handleContentMessage(offerMessage, contentSender);
-    const requestId = (p.handlePopupMessage({ type: "request-candidates" }, popupSender) as { requestId: string }).requestId;
+    const id = await requestId(p);
     p.lockFromPopupClose();
     expect(p.session.locked).toBe(true);
-    expect(await p.handlePopupMessage({ type: "fill-selected", requestId, itemId: "entry" }, popupSender)).toEqual({ type: "locked" });
+    expect(await p.handlePopupMessage({ type: "fill-selected", requestId: id, itemId: "entry" }, popupSender)).toEqual({ type: "locked" });
     expect(p.handleContentMessage(offerMessage, contentSender)).toEqual({ type: "refused", reason: "locked" });
     expect(sent).toHaveLength(0);
   });
@@ -122,16 +141,22 @@ describe("lock lifecycle", () => {
   test("a late async response cannot deliver after a lock during the await", async () => {
     const { p, sent } = policy();
     p.handleContentMessage(offerMessage, contentSender);
-    const requestId = (p.handlePopupMessage({ type: "request-candidates" }, popupSender) as { requestId: string }).requestId;
-    const pending = p.handlePopupMessage({ type: "fill-selected", requestId, itemId: "entry" }, popupSender);
+    const id = await requestId(p);
+    const pending = p.handlePopupMessage({ type: "fill-selected", requestId: id, itemId: "entry" }, popupSender);
     p.lockFromPopupClose();
     expect(await pending).toEqual({ type: "refused", reason: "stale-capability" });
     expect(sent).toHaveLength(0);
   });
 
-  test("a message with a popup-shaped payload from a content sender has no popup authority", () => {
+  test("a message with a popup-shaped payload from a content sender has no popup authority", async () => {
     const { p } = policy();
     expect(p.handleContentMessage({ type: "get-state" }, contentSender)).toEqual({ type: "refused", reason: "locked" });
-    expect(p.handlePopupMessage({ type: "offer", request: offerMessage.request }, popupSender)).toEqual({ type: "locked" });
+    expect(await p.handlePopupMessage({ type: "offer", request: offerMessage.request }, popupSender)).toEqual({ type: "locked" });
+  });
+
+  test("explicit lock() best-effort disposes the vault manager's own state (no throw even without one)", () => {
+    const { p } = policy(null);
+    expect(() => p.lock()).not.toThrow();
+    expect(() => p.lockFromPopupClose()).not.toThrow();
   });
 });
