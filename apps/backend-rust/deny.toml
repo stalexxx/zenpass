@@ -1,0 +1,27 @@
+# cargo-deny configuration for the Rust backend foundation.
+# Licenses: only OSI-approved permissive licenses used by the current
+# closure (record any addition explicitly in the task report).
+[graph]
+targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
+
+[licenses]
+# Inventory (all OSI-approved permissive): MIT/Apache-2.0/ISC/BSD cover the
+# stack; Zlib (foldhash via sqlx), BlueOak-1.0.0 (minicbor, frozen crypto
+# pin) and CDLA-Permissive-2.0 (webpki-roots certificate data via sqlx TLS)
+# complete the current closure. Any addition must be recorded explicitly.
+allow = ["MIT", "Apache-2.0", "ISC", "BSD-3-Clause", "BSD-2-Clause", "Unicode-3.0", "Zlib", "BlueOak-1.0.0", "CDLA-Permissive-2.0"]
+confidence-threshold = 0.8
+exceptions = []
+
+[advisories]
+db-urls = ["https://github.com/RustSec/advisory-db"]
+ignore = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"

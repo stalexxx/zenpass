@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tablename",
+        "type_info": "Name"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Name"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "2a574c7df603fd20cc4ef5079574e90b50a4f7ea58b1f89d7b2fd51d4f5fa079"
+}

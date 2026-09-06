@@ -31,6 +31,7 @@ R01 ─┬─ C04 (full browser-extension client)
      ├─ D01
      └─ D02
 C01 ── C05 (React + TypeScript web-client migration)
+B01+B02 ── RUST-01 (PoC only) ── RUST-02 ── RUST-03 ── RUST-04 ── human release gate
 ```
 
 ## Waves
@@ -50,6 +51,15 @@ C01 ── C05 (React + TypeScript web-client migration)
 | Release | R01 | H02 complete |
 | Follow-on | C04, D01, D02 | R01 complete and envelope/sync stable |
 | Client follow-on | C05 | C01 merged; API/crypto/sync contracts frozen |
+
+## Rust backend migration (2026-09-06)
+
+The user selected Rust and authorized the current agent to plan the migration and
+finish **only RUST-01 Proof of Concept**. [ADR-0013](../decisions/ADR-0013-rust-backend.md)
+selects Axum/Tokio/PostgreSQL/SQLx without an ORM. The [migration plan](RUST-MIGRATION.md)
+assigns the remaining foundation, product parity, and cutover work to RUST-02/03/04
+for another agent. Existing contracts, crypto approvals and release gates remain.
+No production switch or follow-on dispatch is authorized by the PoC task.
 
 ## Integration policy
 

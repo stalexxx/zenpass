@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT indexdef FROM pg_indexes WHERE schemaname = $1 AND tablename <> ALL($2) ORDER BY indexname",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "indexdef",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Name",
+        "NameArray"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "41fb12bb59395c8ec5631e4e1429fd891224e10dda72083a13f4fe4ace0a68b2"
+}
