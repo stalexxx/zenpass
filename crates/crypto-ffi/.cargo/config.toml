@@ -1,0 +1,25 @@
+# D02-MVP: Android cross-compilation for crypto-ffi, scoped to this crate's
+# directory (crates/crypto-ffi is the only Rust path this task may touch;
+# this file lives here rather than at the workspace root so it stays inside
+# the allowed-paths boundary). Cargo discovers `.cargo/config.toml` by
+# walking up from the current working directory, so build from *inside*
+# `crates/crypto-ffi` for this target, e.g.:
+#
+#   cd crates/crypto-ffi && cargo build --target aarch64-linux-android --release
+#
+# Uses NDK 27.1.12297006 (already installed at
+# $ANDROID_HOME/ndk/27.1.12297006 on this dev machine) and its bundled
+# clang toolchain. 26 is this task's chosen minSdk (see
+# apps/android/app/build.gradle.kts — Android 8.0, which comfortably covers
+# the EncryptedSharedPreferences/Keystore APIs this app uses).
+#
+# Paths below are hardcoded to this dev machine's confirmed SDK location
+# (/Users/admin/Library/Android/sdk) — cargo config.toml does not expand
+# environment variables in arbitrary string fields, so a portable build
+# would instead need `bindgen`/build-script-generated config or a
+# CARGO_TARGET_..._LINKER env var set by the invoking shell/CI. Recorded
+# here as a known follow-up if this ever needs to run on a second machine
+# or CI with a different SDK path.
+[target.aarch64-linux-android]
+linker = "/Users/admin/Library/Android/sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android26-clang"
+ar = "/Users/admin/Library/Android/sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
