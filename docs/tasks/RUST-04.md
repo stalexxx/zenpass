@@ -1,6 +1,7 @@
 # RUST-04: Rust backend integration and cutover proposal
 
-Status: BLOCKED. Owner: next agent, not dispatched by RUST-01.
+Status: REVIEW. Reviewed cutover candidate produced; production switch NOT
+executed or authorized by this task — see docs/plan/reports/RUST-04.md.
 Dependencies: RUST-03 integrated, parity accepted, security findings reviewed.
 Goal: produce a concrete reviewed deployment/rollback candidate; production switch
 requires explicit user release authorization and existing H02 gates.

@@ -1,15 +1,26 @@
-# RUST-02: Rust backend foundation checks. Runs the pinned toolchain with a
-# real disposable PostgreSQL 16 service; never touches production.
+# RUST-02/RUST-04: Rust backend foundation and cutover-candidate checks.
+# Runs the pinned toolchain with a real disposable PostgreSQL 16 service;
+# never touches production. RUST-04 added: scoped fmt (see Format step),
+# the RUST-03 product-route integration suite, SBOM regeneration
+# drift-check (closing RUST-01's flagged "unreviewed transitive closure"
+# gap with real advisory/license/SBOM evidence on every push/PR, not just
+# a point-in-time report), a container-image build of
+# infra/rust-backend/Dockerfile, and a second job that runs the real
+# WASM-client-vs-real-binary E2E suite in tests/rust-backend/.
 name: rust-backend
 
 on:
   push:
     paths:
       - "apps/backend-rust/**"
+      - "infra/rust-backend/**"
+      - "tests/rust-backend/**"
       - ".github/workflows/rust-backend.yml"
   pull_request:
     paths:
       - "apps/backend-rust/**"
+      - "infra/rust-backend/**"
+      - "tests/rust-backend/**"
       - ".github/workflows/rust-backend.yml"
 
 env:
@@ -42,12 +53,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/backend-rust
-      - name: Install SQLx CLI and audit tools
+      - name: Install SQLx CLI, cyclonedx and audit tools
         run: >
           cargo install cargo-sqlx --version 0.8.6 --locked &&
-          cargo install cargo-audit cargo-deny --locked
+          cargo install cargo-audit cargo-deny cargo-cyclonedx --locked
       - name: Format
-        run: cargo fmt --all -- --check
+        # Scoped to this crate only: `cargo fmt --all` from this directory
+        # reaches through the crypto-core path dependency into
+        # crates/crypto-core and crates/crypto-ffi (both outside this
+        # task's allowed paths and outside apps/backend-rust's isolated
+        # workspace per `cargo metadata --no-deps`) — see the RUST-03
+        # report's Known limitations. `-p zkpm-backend` keeps this check,
+        # and every other cargo invocation below, correctly scoped.
+        run: cargo fmt -p zkpm-backend -- --check
       - name: Clippy
         env:
           DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci
@@ -60,11 +78,16 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci
         run: cargo test --locked
-      - name: PostgreSQL integration tests
+      - name: PostgreSQL integration tests (foundation/migration/TLS suite)
         env:
           DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci
           RUST_TEST_DATABASE_URL: postgres://postgres@127.0.0.1:55432/postgres
         run: cargo test --locked --test postgres -- --ignored
+      - name: PostgreSQL integration tests (RUST-03 product/parity suite)
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci
+          RUST_TEST_DATABASE_URL: postgres://postgres@127.0.0.1:55432/postgres
+        run: cargo test --locked --test product -- --ignored --test-threads=1
       - name: Migrate a scratch database, then verify SQLx offline metadata
         env:
           DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci_prepare
@@ -77,7 +100,96 @@ jobs:
         run: |
           cargo audit
           cargo deny check advisories licenses sources bans
+      - name: SBOM regeneration drift check
+        # Regenerates the CycloneDX SBOM from the exact Cargo.lock actually
+        # built and tested above, then compares its component name@version
+        # list against the committed sbom/zkpm-backend.cdx.json — not a
+        # byte-for-byte diff, because cargo-cyclonedx embeds a fresh random
+        # `serialNumber`, a build `timestamp`, and this checkout's absolute
+        # path (in the local `crypto-core` path-dependency's bom-ref/purl)
+        # on every run, none of which indicate a real dependency change.
+        # This is the RUST-04 evidence that the SBOM is not a stale,
+        # point-in-time snapshot: every push/PR re-derives and re-checks
+        # it, closing RUST-01's flagged "unreviewed transitive closure"
+        # gap with real, repeatable evidence.
+        run: |
+          cargo cyclonedx --format json
+          jq '[.components[] | {name, version}] | sort' zkpm-backend.cdx.json > /tmp/new-components.json
+          jq '[.components[] | {name, version}] | sort' sbom/zkpm-backend.cdx.json > /tmp/committed-components.json
+          diff /tmp/committed-components.json /tmp/new-components.json
+          rm zkpm-backend.cdx.json
       - name: Offline rebuild without a database URL
         run: env -u DATABASE_URL SQLX_OFFLINE=true cargo build --locked --offline
       - name: Diff hygiene
         run: git diff --check
+
+  container-image:
+    runs-on: ubuntu-latest
+    needs: rust-backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the RUST-04 candidate container image
+        # Builds infra/rust-backend/Dockerfile from the repository root
+        # context (it needs crates/crypto-core alongside apps/backend-rust
+        # — see that file's comments). This proves the exact artifact
+        # docs/plan/reports/RUST-04.md and infra/rust-backend/RUNBOOK.md
+        # describe actually builds on Linux CI, not only on a developer's
+        # machine. It is never pushed anywhere by this workflow.
+        run: |
+          docker build -f infra/rust-backend/Dockerfile -t zkpm-backend:ci-candidate .
+          docker inspect zkpm-backend:ci-candidate --format 'digest={{.Id}}'
+      - name: Smoke-check the built image runs as non-root and exposes the CLI
+        run: |
+          user="$(docker run --rm --entrypoint id zkpm-backend:ci-candidate)"
+          echo "$user"
+          echo "$user" | grep -q 'uid=10001(zkpm)'
+          docker run --rm zkpm-backend:ci-candidate --version
+
+  client-e2e:
+    runs-on: ubuntu-latest
+    needs: rust-backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: rust04ci
+        ports:
+          - 127.0.0.1:55433:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d rust04ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.93.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/backend-rust
+      - name: Build the zkpm-backend binary used by the E2E harness
+        working-directory: apps/backend-rust
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:55433/rust04ci
+        run: cargo build --locked --bin zkpm-backend
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.15
+      - name: Install workspace dependencies
+        run: bun install --frozen-lockfile
+      - name: Real-client E2E, rollback/cutover and migration-baseline checks
+        # Excludes backup-restore-rehearsal.test.ts: that test needs a
+        # named Docker network reachable by hostname (RUST04_PG_NETWORK/
+        # RUST04_PG_HOST — see tests/rust-backend/helpers.ts and its own
+        # file header), which a GitHub Actions service container does not
+        # expose the same way a local disposable Docker Postgres does.
+        # Rehearse it locally per infra/rust-backend/RUNBOOK.md instead;
+        # docs/plan/reports/RUST-04.md records that local run's result.
+        env:
+          RUST04_E2E: "1"
+          RUST04_TEST_DATABASE_URL: postgres://postgres@127.0.0.1:55433/postgres
+          RUST04_BACKEND_BIN: apps/backend-rust/target/debug/zkpm-backend
+        run: >
+          bun test tests/rust-backend/client-e2e.test.ts
+          tests/rust-backend/rollback-compat.test.ts
+          tests/rust-backend/migration-baseline.test.ts

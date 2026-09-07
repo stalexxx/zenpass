@@ -1,0 +1,102 @@
+# RUST-04 candidate deployment overlay for `zkpm-backend` (apps/backend-rust).
+#
+# This file is a DESIGN ARTIFACT, not a live overlay. It is not referenced by
+# infra/docker-compose.prod.yml and does not run against production. It shows
+# exactly how the Rust backend would slot into the existing single-VPS
+# deployment (see docs/plan/STATUS.md R01 row) if a human authorizes cutover:
+# same `postgres` service and `database`/`proxy` networks, same private-DB
+# posture (no published DB port), a separate one-shot migration job, and
+# liveness/readiness wired the same way the existing `api`/`migrate`/`caddy`
+# services already are in infra/docker-compose.prod.yml.
+#
+# To actually rehearse or cut over, a human would run this as an *additional*
+# compose file layered on top of the existing stack, e.g.:
+#   docker compose -f infra/docker-compose.prod.yml \
+#                   -f infra/rust-backend/docker-compose.rust-backend.yml \
+#                   up -d rust-migrate rust-api
+# which starts the Rust services alongside (not instead of) the existing
+# `migrate`/`api` Bun services, on the same Postgres and the same private
+# `database` network. Nothing here removes or restarts the Bun `api`
+# service; Caddy continues routing 100% of traffic to it until the
+# `Caddyfile` is deliberately changed (see RUNBOOK.md Phase 3) — this file
+# alone performs no traffic switch.
+
+name: zkpm
+
+x-production-env: &production-env
+  env_file:
+    - path: ../.env.production
+      required: false
+
+services:
+  rust-migrate:
+    build:
+      context: ..
+      dockerfile: rust-backend/Dockerfile
+    image: zkpm-backend:${ZKPM_RUST_IMAGE_TAG:-candidate}
+    command: ["migrate"]
+    restart: "no"
+    <<: *production-env
+    environment:
+      ZKPM_ENVIRONMENT: production
+      # ZKPM_DATABASE_URL, ZKPM_DATABASE_TLS, ZKPM_OPAQUE_SERVER_SETUP,
+      # ZKPM_CORS_ORIGINS etc. come from .env.production (see
+      # infra/.env.production.example for the Bun-side names; the Rust
+      # equivalents are documented in apps/backend-rust/README.md and must
+      # be added under their ZKPM_* names before this override is ever run
+      # for real — deliberately not defaulted here so a missing value fails
+      # closed rather than silently reusing a Bun-shaped variable).
+      ZKPM_DATABASE_TLS: disabled # same-host Docker network; matches existing api/migrate posture
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - database
+
+  rust-api:
+    build:
+      context: ..
+      dockerfile: rust-backend/Dockerfile
+    image: zkpm-backend:${ZKPM_RUST_IMAGE_TAG:-candidate}
+    command: ["serve"]
+    restart: unless-stopped
+    <<: *production-env
+    environment:
+      ZKPM_ENVIRONMENT: production
+      ZKPM_BIND: 0.0.0.0:8080
+      ZKPM_DATABASE_TLS: disabled
+    depends_on:
+      rust-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # zkpm-backend has no HTTP client baked in; use the dedicated
+      # `healthcheck` subcommand (bounded DB probe, exit 1 on failure)
+      # rather than curl/wget, neither of which exists in the slim runtime
+      # image by design (smaller attack surface, no extra CVE stream).
+      test: ["CMD", "/usr/local/bin/zkpm-backend", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    # No published ports: reachable only from the `proxy` network (Caddy)
+    # and the `database` network, exactly like the existing `api` service.
+    # Resource bounds are conservative for a single-VPS single-instance
+    # deployment; adjust only with load evidence, not speculatively.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+        reservations:
+          memory: 64M
+    networks:
+      - proxy
+      - database
+
+networks:
+  proxy:
+    external: true
+    name: zkpm_proxy
+  database:
+    external: true
+    name: zkpm_database
