@@ -24,8 +24,18 @@
 name: zkpm
 
 x-production-env: &production-env
+  # When multiple Compose files are combined with `-f`, relative host paths
+  # are resolved against the FIRST file's directory (infra/), not this
+  # file's own directory (infra/rust-backend/) — even though this file is
+  # only ever meant to be layered on top of infra/docker-compose.prod.yml.
+  # `../.env.production` (relative to infra/rust-backend/) silently
+  # resolved to a nonexistent /opt/.env.production and was skipped
+  # (required: false swallows the miss with no error), so rust-migrate/
+  # rust-api never actually received any ZKPM_* value from the real
+  # deployment's .env.production. `.env.production` (relative to infra/)
+  # is the path that actually resolves when this file is used as designed.
   env_file:
-    - path: ../.env.production
+    - path: .env.production
       required: false
 
 services:
