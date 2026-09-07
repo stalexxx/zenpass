@@ -177,6 +177,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/backend-rust
+      - name: Migrate the CI database for compile-time SQLx checks
+        # Mirrors the rust-backend job's identical step: the compile-time
+        # sqlx::query!/query_scalar! macros in the build below verify
+        # against DATABASE_URL's actual schema, so it must be migrated
+        # (both the SQLx baseline and the legacy schema_migrations
+        # bookkeeping table) before `cargo build` runs.
+        working-directory: apps/backend-rust
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:55433/rust04ci
+        run: |
+          cargo install sqlx-cli --version 0.8.6 --locked --no-default-features --features rustls,postgres
+          sqlx migrate run --source migrations
+          psql "$DATABASE_URL" -c "CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
       - name: Build the zkpm-backend binary used by the E2E harness
         working-directory: apps/backend-rust
         env:
