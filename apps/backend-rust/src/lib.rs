@@ -1,10 +1,14 @@
 #![forbid(unsafe_code)]
 
+pub mod account;
+pub mod auth;
 pub mod config;
+pub mod devices;
 pub mod dto;
 pub mod error;
 pub mod migrate;
 pub mod request_id;
+pub mod sync;
 
 use std::{sync::Arc, time::Instant};
 
@@ -29,18 +33,24 @@ pub const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id"
 pub struct AppState {
     pool: PgPool,
     concurrency: Arc<Semaphore>,
+    pub auth: Arc<auth::AuthState>,
 }
 
 impl AppState {
-    pub fn new(pool: PgPool, concurrency: usize) -> Self {
+    pub fn new(pool: PgPool, concurrency: usize, auth: Arc<auth::AuthState>) -> Self {
         Self {
             pool,
             concurrency: Arc::new(Semaphore::new(concurrency)),
+            auth,
         }
     }
 
     pub fn from_config(pool: PgPool, config: &Config) -> Self {
-        Self::new(pool, config.limits.concurrency)
+        Self::new(
+            pool,
+            config.limits.concurrency,
+            auth::AuthState::new(config),
+        )
     }
 
     pub fn pool(&self) -> &PgPool {
@@ -65,6 +75,10 @@ pub fn app(pool: PgPool, config: &Config) -> Router {
     let router = Router::new()
         .route("/health/live", get(live))
         .route("/health/ready", get(ready))
+        .merge(auth::routes::router())
+        .merge(devices::router())
+        .merge(account::router())
+        .merge(sync::router())
         .with_state(state.clone());
     harden(router, config, state)
 }
@@ -134,6 +148,15 @@ async fn capture_route(request: Request, next: Next) -> Response {
     {
         Some("/health/live") => "/health/live",
         Some("/health/ready") => "/health/ready",
+        Some("/auth/opaque/register") => "/auth/opaque/register",
+        Some("/auth/opaque/login") => "/auth/opaque/login",
+        Some("/auth/refresh") => "/auth/refresh",
+        Some("/auth/logout") => "/auth/logout",
+        Some("/devices") => "/devices",
+        Some("/devices/{deviceId}/revoke") => "/devices/{deviceId}/revoke",
+        Some("/account/key-bundle") => "/account/key-bundle",
+        Some("/vaults/{vaultId}/items") => "/vaults/{vaultId}/items",
+        Some("/vaults/{vaultId}/changes") => "/vaults/{vaultId}/changes",
         _ => "unmatched",
     };
     let mut response = next.run(request).await;
