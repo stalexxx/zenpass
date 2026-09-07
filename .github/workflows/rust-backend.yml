@@ -57,6 +57,16 @@ jobs:
         run: >
           cargo install sqlx-cli --version 0.8.6 --locked --no-default-features --features rustls,postgres &&
           cargo install cargo-audit cargo-deny cargo-cyclonedx --locked
+      - name: Migrate the CI database for compile-time SQLx checks
+        # Clippy/Build/Unit-tests below use sqlx::query!/query_scalar!
+        # macros that verify against DATABASE_URL at compile time; that
+        # database must already have the schema applied before any of
+        # those steps run, or every query macro fails to compile.
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:55432/rust02ci
+        run: |
+          sqlx migrate run --source migrations
+          psql "$DATABASE_URL" -c "CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
       - name: Format
         # Scoped to this crate only: `cargo fmt --all` from this directory
         # reaches through the crypto-core path dependency into
