@@ -73,13 +73,20 @@ apply all migrations and record both histories.
 ## Verify
 
 ```sh
-cargo fmt --all -- --check
+cargo fmt -p zkpm-backend -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo build --locked
 cargo test --locked
 RUST_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55440/postgres \
   cargo test --locked --test postgres -- --ignored
+RUST_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55440/postgres \
+  cargo test --locked --test product -- --ignored --test-threads=1
 ```
+
+`cargo fmt --all` from this directory reaches through the `crypto-core`
+path dependency into `crates/crypto-core`/`crates/crypto-ffi` (outside this
+crate's isolated workspace per `cargo metadata --no-deps`, and outside any
+RUST-0x task's allowed paths) — always scope to `-p zkpm-backend`.
 
 The PostgreSQL suite needs a dedicated disposable server (trust auth only
 for that local container), Docker for the pause/resume and TLS-container
@@ -104,8 +111,36 @@ Cleanup (only the dedicated container created above):
 docker rm --force --volumes rust02-postgres
 ```
 
+## RUST-04: container image, client E2E, and cutover runbook
+
+- `infra/rust-backend/Dockerfile`: non-root (uid 10001), Debian
+  bookworm-slim multi-stage build, `--locked`, CA certificates. Build from
+  the repository root: `docker build -f infra/rust-backend/Dockerfile -t
+  zkpm-backend:candidate .` (needs `crates/crypto-core` alongside this
+  crate). `docker run --rm zkpm-backend:candidate --version` /
+  `... healthcheck` / `... migrate` / `... serve`.
+- `infra/rust-backend/docker-compose.rust-backend.yml`: a parallel overlay
+  design (not applied to the real `infra/docker-compose.prod.yml`) showing
+  a separate migration job and API service on the existing private
+  Postgres network.
+- `infra/rust-backend/RUNBOOK.md`: the concrete cutover/rollback procedure,
+  acceptance criteria, and rollback triggers a human would follow.
+- `tests/rust-backend/`: spawns the real compiled binary and drives it with
+  the real `packages/sdk` + `packages/crypto-wasm` client code (register/
+  login/devices/key-bundle/two-device sync), proves bearer-session
+  compatibility with the Bun backend on the same database in both
+  directions (rollback and forward cutover), checks legacy/fresh migration
+  baseline compatibility against the real Bun migrator, and rehearses
+  `infra/backup.sh`/`infra/restore.sh` (unmodified) against a
+  Rust-populated database. Run with `RUST04_E2E=1
+  RUST04_TEST_DATABASE_URL=postgres://... bun test tests/rust-backend`
+  (see each file's header for additional gates).
+
 ## Deliberately left to the next tasks
 
-RUST-03: auth/devices/account/sync parity. RUST-04: Linux/container/client
-E2E and reviewed cutover/rollback. Do not deploy this service publicly or
-treat it as a completed backend rewrite.
+RUST-04 delivered a reviewed cutover candidate, not a production switch:
+actually flipping the VPS's Caddy routing requires explicit human
+authorization at execution time (see `infra/rust-backend/RUNBOOK.md`
+Section 5), and H02's external audit still gates any public release. Do
+not deploy this service publicly or treat it as a completed backend
+rewrite.
