@@ -154,6 +154,21 @@ jobs:
           echo "$user"
           echo "$user" | grep -q 'uid=10001(zkpm)'
           docker run --rm zkpm-backend:ci-candidate --version
+      - name: Export the candidate image as a build artifact
+        # No registry is configured for this project, and the RUST-04
+        # precheck needs this exact image on the deployment VPS without
+        # building it there (the VPS has ~120MB free RAM, too little to
+        # safely run `cargo build --release` alongside the live Bun/
+        # Postgres containers). Exporting as a downloadable artifact lets
+        # a human `docker load` it directly, with no registry credentials
+        # and no push to any third party beyond GitHub's own artifact
+        # storage on this already-private-turned-reviewed pipeline.
+        run: docker save zkpm-backend:ci-candidate -o /tmp/zkpm-backend-ci-candidate.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zkpm-backend-ci-candidate-image
+          path: /tmp/zkpm-backend-ci-candidate.tar
+          retention-days: 14
 
   client-e2e:
     runs-on: ubuntu-latest
