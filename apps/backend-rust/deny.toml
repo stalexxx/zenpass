@@ -15,7 +15,11 @@ exceptions = []
 
 [advisories]
 db-urls = ["https://github.com/RustSec/advisory-db"]
-ignore = []
+# Mirrors audit.toml in this directory: both are inherited, already-reviewed
+# findings tied to frozen crypto-core dependency pins (see
+# docs/plan/reports/RUST-02.md, RUST-03.md, RUST-04.md). Upgrading either
+# pin requires an ADR against the frozen crypto-core dependency tree.
+ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2026-0097"]
 
 [sources]
 unknown-registry = "deny"

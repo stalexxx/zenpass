@@ -1,0 +1,19 @@
+# cargo-audit configuration for the Rust backend foundation.
+#
+# Both entries below are inherited, already-reviewed findings tied to
+# frozen crypto-core dependency pins (see docs/plan/reports/RUST-02.md,
+# RUST-03.md, RUST-04.md, all of which independently re-ran `cargo audit`
+# and recorded these same two findings as accepted, not newly introduced).
+# Upgrading either pin requires an ADR against the frozen crypto-core
+# dependency tree, not a Rust-backend-task-scoped change.
+[advisories]
+ignore = [
+    # rsa 0.9.10: "Marvin Attack" timing side-channel. No fixed upgrade
+    # exists upstream; rsa is pulled in transitively through the frozen
+    # crypto-core dependency closure, not used directly by zkpm-backend.
+    "RUSTSEC-2023-0071",
+    # rand 0.8.5: unsound with a custom logger using rand::rng(). Frozen
+    # pin shared with crypto-core; zkpm-backend does not use a custom
+    # rand::Rng logger.
+    "RUSTSEC-2026-0097",
+]
