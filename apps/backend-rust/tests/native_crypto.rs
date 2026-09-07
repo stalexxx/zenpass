@@ -35,3 +35,21 @@ fn native_core_rejects_malformed_remote_messages_generically() {
         Err(Error::InvalidEncoding)
     ));
 }
+
+/// Fixed by the pinned Ristretto255-SHA512 suite (ADR-0003): a
+/// `RegistrationRequest` is exactly the 32-byte OPRF blinded element, and a
+/// `RegistrationUpload` is always 192 bytes (client static public key +
+/// masking key + envelope). The two never overlap in length, which is what
+/// lets the server dispatch on message length alone (mirroring how the
+/// login route already dispatches leg 1 vs. leg 2 by `KE1_LEN`).
+#[test]
+fn registration_request_and_upload_lengths_are_fixed_and_distinct() {
+    let reg = crypto_core::opaque::client_registration_start(b"pw").unwrap();
+    assert_eq!(reg.message.len(), 32);
+    let setup = crypto_core::opaque::ServerSetupHandle::generate();
+    let sr = crypto_core::opaque::server_registration_start(&setup, &reg.message, b"id").unwrap();
+    let state = crypto_core::opaque::client_registration_state(&reg.state_bytes()).unwrap();
+    let finish =
+        crypto_core::opaque::client_registration_finish(state, b"pw", &sr.message).unwrap();
+    assert_eq!(finish.message.len(), 192);
+}

@@ -1,6 +1,6 @@
 # RUST-03: Existing backend behavior on Rust
 
-Status: BLOCKED. Owner: next agent, not dispatched by RUST-01.
+Status: REVIEW. Owner: next agent, not dispatched by RUST-01.
 Dependencies: RUST-02 integrated; integrator/security review of native auth boundary
 and the remaining existing H01/H02 constraints. No new auth/recovery contract authority.
 

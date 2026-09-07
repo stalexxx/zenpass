@@ -23,6 +23,10 @@ pub const ENV_BODY_LIMIT_BYTES: &str = "ZKPM_BODY_LIMIT_BYTES";
 pub const ENV_REQUEST_TIMEOUT_MS: &str = "ZKPM_REQUEST_TIMEOUT_MS";
 pub const ENV_CONCURRENCY: &str = "ZKPM_CONCURRENCY";
 pub const ENV_SHUTDOWN_TIMEOUT_MS: &str = "ZKPM_SHUTDOWN_TIMEOUT_MS";
+pub const ENV_OPAQUE_SERVER_SETUP: &str = "ZKPM_OPAQUE_SERVER_SETUP";
+pub const ENV_SESSION_TTL_SECONDS: &str = "ZKPM_SESSION_TTL_SECONDS";
+pub const ENV_AUTH_RATE_LIMIT_MAX: &str = "ZKPM_AUTH_RATE_LIMIT_MAX";
+pub const ENV_AUTH_RATE_LIMIT_WINDOW_SECONDS: &str = "ZKPM_AUTH_RATE_LIMIT_WINDOW_SECONDS";
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq, Clone)]
 pub enum ConfigError {
@@ -64,6 +68,14 @@ pub enum ConfigError {
     InvalidConcurrency,
     #[error("shutdown timeout must be 1000..=120000 ms")]
     InvalidShutdownTimeout,
+    #[error("OPAQUE server setup must be valid base64")]
+    InvalidOpaqueServerSetup,
+    #[error("session TTL must be 1..=86400 seconds")]
+    InvalidSessionTtl,
+    #[error("auth rate limit max must be 1..=1000000")]
+    InvalidAuthRateLimitMax,
+    #[error("auth rate limit window must be 1..=86400 seconds")]
+    InvalidAuthRateLimitWindow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,6 +119,12 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     pub log_level: LogLevel,
     pub limits: Limits,
+    /// Base64-decoded OPAQUE server setup (private key + OPRF seed),
+    /// ADR-0006 §3. `None` outside production means "generate ephemeral".
+    opaque_server_setup: Option<Vec<u8>>,
+    pub session_ttl: Duration,
+    pub auth_rate_limit_max: u32,
+    pub auth_rate_limit_window: Duration,
 }
 
 impl Config {
@@ -119,6 +137,9 @@ impl Config {
     pub const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 15_000;
     pub const DEFAULT_CONCURRENCY: usize = 64;
     pub const DEFAULT_SHUTDOWN_TIMEOUT_MS: u64 = 10_000;
+    pub const DEFAULT_SESSION_TTL_SECONDS: u64 = 900;
+    pub const DEFAULT_AUTH_RATE_LIMIT_MAX: u64 = 10;
+    pub const DEFAULT_AUTH_RATE_LIMIT_WINDOW_SECONDS: u64 = 300;
 
     pub fn from_env() -> Result<Self, ConfigError> {
         let environment = match std::env::var(ENV_ENVIRONMENT).ok().as_deref() {
@@ -142,6 +163,11 @@ impl Config {
                 request_timeout_ms: std::env::var(ENV_REQUEST_TIMEOUT_MS).ok(),
                 concurrency: std::env::var(ENV_CONCURRENCY).ok(),
                 shutdown_timeout_ms: std::env::var(ENV_SHUTDOWN_TIMEOUT_MS).ok(),
+                opaque_server_setup: std::env::var(ENV_OPAQUE_SERVER_SETUP).ok(),
+                session_ttl_seconds: std::env::var(ENV_SESSION_TTL_SECONDS).ok(),
+                auth_rate_limit_max: std::env::var(ENV_AUTH_RATE_LIMIT_MAX).ok(),
+                auth_rate_limit_window_seconds: std::env::var(ENV_AUTH_RATE_LIMIT_WINDOW_SECONDS)
+                    .ok(),
             },
         )
     }
@@ -247,6 +273,46 @@ impl Config {
                 ConfigError::InvalidShutdownTimeout,
             )?),
         };
+        let opaque_server_setup = match values.opaque_server_setup {
+            Some(raw) if !raw.trim().is_empty() => {
+                use base64::Engine;
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(raw.trim())
+                    .map_err(|_| ConfigError::InvalidOpaqueServerSetup)?;
+                // Fail closed at startup rather than at first login: reject
+                // an unparsable server setup now, with no input echoed.
+                crypto_core::opaque::ServerSetupHandle::deserialize(&bytes)
+                    .map_err(|_| ConfigError::InvalidOpaqueServerSetup)?;
+                Some(bytes)
+            }
+            // Unset outside production means "generate ephemeral"; unset in
+            // production is rejected when the OPAQUE server is actually
+            // built (`auth::AuthState::new`), matching the Bun reference's
+            // `loadOrGenerateServerSetup`, which throws when the auth
+            // context is constructed rather than at config load.
+            _ => None,
+        };
+        let session_ttl = Duration::from_secs(parse_bounded(
+            values.session_ttl_seconds.as_deref(),
+            1,
+            86_400,
+            Self::DEFAULT_SESSION_TTL_SECONDS,
+            ConfigError::InvalidSessionTtl,
+        )?);
+        let auth_rate_limit_max = parse_bounded(
+            values.auth_rate_limit_max.as_deref(),
+            1,
+            1_000_000,
+            Self::DEFAULT_AUTH_RATE_LIMIT_MAX,
+            ConfigError::InvalidAuthRateLimitMax,
+        )? as u32;
+        let auth_rate_limit_window = Duration::from_secs(parse_bounded(
+            values.auth_rate_limit_window_seconds.as_deref(),
+            1,
+            86_400,
+            Self::DEFAULT_AUTH_RATE_LIMIT_WINDOW_SECONDS,
+            ConfigError::InvalidAuthRateLimitWindow,
+        )?);
         let config = Self {
             environment,
             bind,
@@ -258,9 +324,22 @@ impl Config {
             cors_origins,
             log_level,
             limits,
+            opaque_server_setup,
+            session_ttl,
+            auth_rate_limit_max,
+            auth_rate_limit_window,
         };
         config.connect_options()?;
         Ok(config)
+    }
+
+    /// Base64-decoded OPAQUE server setup bytes from the environment, if set.
+    pub fn opaque_server_setup(&self) -> Option<&[u8]> {
+        self.opaque_server_setup.as_deref()
+    }
+
+    pub fn is_production(&self) -> bool {
+        self.environment == Environment::Production
     }
 
     /// Connection options with TLS policy applied. Outside production only
@@ -318,6 +397,10 @@ pub struct Values {
     pub request_timeout_ms: Option<String>,
     pub concurrency: Option<String>,
     pub shutdown_timeout_ms: Option<String>,
+    pub opaque_server_setup: Option<String>,
+    pub session_ttl_seconds: Option<String>,
+    pub auth_rate_limit_max: Option<String>,
+    pub auth_rate_limit_window_seconds: Option<String>,
 }
 
 fn parse_bounded(

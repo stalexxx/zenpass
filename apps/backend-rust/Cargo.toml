@@ -12,13 +12,29 @@ publish = false
 resolver = "3"
 
 [dependencies]
-axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "matched-path", "query", "tokio"] }
 base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
 clap = { version = "=4.6.6", default-features = false, features = ["derive", "error-context", "help", "std", "suggestions", "usage"] }
 crypto-core = { path = "../../crates/crypto-core", version = "=0.1.0" }
+# Exact ADR-0003-approved pins already resolved transitively via crypto-core's
+# opaque-ke dependency (see Cargo.lock); used here only for bearer-session
+# bookkeeping (opaque token bytes, token hash) that is explicitly outside the
+# crypto-envelope-v1 boundary crypto-core owns -- mirroring the Bun reference,
+# which uses plain `node:crypto` (not the WASM crypto-server package) for the
+# exact same purpose. No cryptographic primitive is implemented here: `rand`'s
+# OsRng and `sha2`'s Sha256 are called directly, unmodified. See RUST-03
+# report "Security considerations" for the rationale and the escalation this
+# was reported under.
+rand = { version = "=0.8.5", default-features = false, features = ["std", "std_rng", "getrandom"] }
+sha2 = { version = "=0.10.9", default-features = false }
+# Exact ADR-0003-approved pin (already a transitive dependency of crypto-core
+# via opaque-ke); used only to keep pending OPAQUE login state and session
+# tokens in zeroizing buffers while held in-process.
+zeroize = { version = "=1.9.0", default-features = false }
 secrecy = "=0.10.3"
 serde = { version = "=1.0.229", features = ["derive"] }
-sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "macros"] }
+serde_json = "=1.0.151"
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "macros", "time", "json", "uuid"] }
 thiserror = "=2.0.20"
 time = { version = "=0.3.55", default-features = false, features = ["formatting", "parsing", "std"] }
 tokio = { version = "=1.53.1", default-features = false, features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time"] }

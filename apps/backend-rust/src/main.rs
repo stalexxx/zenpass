@@ -62,12 +62,15 @@ async fn serve(config: Config) -> ExitCode {
     tracing::info!(target: LOG_TARGET, "server_started");
     let (stopping, stopped) = tokio::sync::oneshot::channel();
     let shutdown_timeout = config.limits.shutdown_timeout;
-    let server = axum::serve(listener, app(pool.clone(), &config))
-        .with_graceful_shutdown(async move {
-            shutdown_signal().await;
-            let _ = stopping.send(());
-        })
-        .into_future();
+    let server = axum::serve(
+        listener,
+        app(pool.clone(), &config).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move {
+        shutdown_signal().await;
+        let _ = stopping.send(());
+    })
+    .into_future();
     let result = tokio::select! {
         result = server => result,
         _ = async {
