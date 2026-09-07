@@ -55,7 +55,7 @@ jobs:
           workspaces: apps/backend-rust
       - name: Install SQLx CLI, cyclonedx and audit tools
         run: >
-          cargo install cargo-sqlx --version 0.8.6 --locked &&
+          cargo install sqlx-cli --version 0.8.6 --locked --no-default-features --features rustls,postgres &&
           cargo install cargo-audit cargo-deny cargo-cyclonedx --locked
       - name: Format
         # Scoped to this crate only: `cargo fmt --all` from this directory
